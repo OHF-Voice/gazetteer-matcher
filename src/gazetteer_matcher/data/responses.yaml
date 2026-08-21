@@ -1,0 +1,176 @@
+language: en
+
+# User-facing rejection messages. Internal matcher reasons are intentionally
+# not exposed: they are diagnostic and may change as constraints evolve.
+templates:
+  generic: "Sorry, I couldn't understand that command."
+  no_action_named_target: "Sorry, I see you're targeting {target} ({target_type}), but I don't know what action to take."
+  no_action_target: "Sorry, I see you're targeting {target}, but I don't know what action to take."
+  no_action: "Sorry, I don't know what action to take."
+  missing_target: "Sorry, I think you're trying to {action}, but I'm not sure."
+  unsupported_target_action_named: "Sorry, I can't {action} {target} ({target_type}); that action doesn't apply."
+  unsupported_target_action: "Sorry, I can't {action} {target}; that action doesn't apply."
+  unsupported_action: "Sorry, I can't {action} that target."
+  unexplained_target: "Sorry, I see you're referring to {target}, but I didn't understand the whole request."
+  unexplained: "Sorry, I understood part of that, but not the whole request."
+  ambiguous: "Sorry, that could mean more than one thing. Please be more specific."
+  conflicting_scope: "Sorry, that request names conflicting locations."
+  anaphora_missing_target: "Sorry, I'm not sure what {pronoun} refers to."
+  anaphora_multiple_targets: "Sorry, {pronoun} could refer to more than one previous target."
+  anaphora_singular_group: "Sorry, {pronoun} refers to a group, not one device."
+  anaphora_explicit_target: "Sorry, I can't combine {pronoun} with another target."
+  anaphora_multiple_pronouns: "Sorry, I found more than one follow-up reference."
+
+target_templates:
+  named: "'{name}'"
+  area_kind: "the {kind} in {area}"
+  floor_kind: "the {kind} on {floor}"
+  kind: "the {kind}"
+  area: "the {area} area"
+  floor: "the {floor} floor"
+
+actions:
+  turn_on: turn on
+  turn_off: turn off
+  open: open
+  close: close
+  lock: lock
+  unlock: unlock
+  activate: activate
+  illuminate: turn on
+  set: set
+  run_script: run
+  get_state: check
+  nevermind: ignore
+  get_date: get the date for
+  get_time: get the time for
+  get_temperature: get the temperature for
+  get_weather: get the weather for
+  vacuum_start: start
+  vacuum_return: return
+  vacuum_clean_area: clean
+  media_pause: pause
+  media_unpause: resume
+  media_next: skip
+  media_previous: go back on
+  set_volume: set the volume on
+  mute: mute
+  unmute: unmute
+  volume_up: raise the volume on
+  volume_down: lower the volume on
+  play: play on
+  timer_start: start a timer on
+  timer_cancel_all: cancel all timers on
+  timer_cancel: cancel a timer on
+  timer_increase: extend a timer on
+  timer_decrease: shorten a timer on
+  timer_pause: pause a timer on
+  timer_unpause: resume a timer on
+  timer_status: check a timer on
+  fan_speed: set the speed of
+  mower_start: start
+  mower_dock: dock
+
+# Standalone descriptions used when the matcher recognizes an action shape but
+# cannot determine a coherent target or set of required details.
+action_attempts:
+  turn_on: turn something on
+  turn_off: turn something off
+  open: open something
+  close: close something
+  lock: lock something
+  unlock: unlock something
+  activate: activate something
+  illuminate: turn on a light
+  set: change a setting
+  run_script: run a script
+  get_state: check a device
+  nevermind: cancel the request
+  get_date: get the date
+  get_time: get the time
+  get_temperature: check the temperature
+  get_weather: check the weather
+  vacuum_start: start a vacuum
+  vacuum_return: return a vacuum to its base
+  vacuum_clean_area: clean an area
+  media_pause: pause the media
+  media_unpause: resume the media
+  media_next: skip to the next track
+  media_previous: go back to the previous track
+  set_volume: set the volume
+  mute: mute a media player
+  unmute: unmute a media player
+  volume_up: raise the volume
+  volume_down: lower the volume
+  play: play media
+  timer_start: start a timer
+  timer_cancel_all: cancel all timers
+  timer_cancel: cancel a timer
+  timer_increase: extend a timer
+  timer_decrease: shorten a timer
+  timer_pause: pause a timer
+  timer_unpause: resume a timer
+  timer_status: check a timer
+  fan_speed: set a fan's speed
+  mower_start: start a lawn mower
+  mower_dock: dock a lawn mower
+
+domains:
+  light:
+    singular: a light
+    plural: lights
+  switch:
+    singular: a switch
+    plural: switches
+  fan:
+    singular: a fan
+    plural: fans
+  cover:
+    singular: a cover
+    plural: covers
+  lock:
+    singular: a lock
+    plural: locks
+  climate:
+    singular: a thermostat
+    plural: thermostats
+  media_player:
+    singular: a media player
+    plural: media players
+  vacuum:
+    singular: a vacuum
+    plural: vacuums
+  lawn_mower:
+    singular: a lawn mower
+    plural: lawn mowers
+  valve:
+    singular: a valve
+    plural: valves
+  input_boolean:
+    singular: a helper
+    plural: helpers
+  sensor:
+    singular: a sensor
+    plural: sensors
+  binary_sensor:
+    singular: a sensor
+    plural: sensors
+  person:
+    singular: a person
+    plural: people
+  script:
+    singular: a script
+    plural: scripts
+  scene:
+    singular: a scene
+    plural: scenes
+
+device_classes:
+  blind: blinds
+  curtain: curtains
+  door: doors
+  garage: garage doors
+  garage_door: garage doors
+  shade: shades
+  shutter: shutters
+  window: windows

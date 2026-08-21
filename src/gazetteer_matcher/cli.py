@@ -13,6 +13,7 @@ def _add_paths(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--vocabulary", type=Path, help="Override vocabulary.yaml")
     parser.add_argument("--home", type=Path, help="Override home.yaml")
     parser.add_argument("--intents", type=Path, help="Override intents.yaml")
+    parser.add_argument("--responses", type=Path, help="Override responses.yaml")
 
 
 def _matcher(args: argparse.Namespace) -> GazetteerMatcher:
@@ -20,6 +21,7 @@ def _matcher(args: argparse.Namespace) -> GazetteerMatcher:
         vocabulary_path=args.vocabulary,
         home_path=args.home,
         intents_path=args.intents,
+        responses_path=args.responses,
     )
 
 
@@ -87,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         else:
-            print(f"REJECTED: {result.reason}", file=sys.stderr)
+            if result.response is None:
+                raise RuntimeError("rejected interpretation has no response")
+            print(result.response, file=sys.stderr)
             return 2
     return 0
 

@@ -235,6 +235,31 @@ strings are diagnostic and too brittle to make part of the contract. These
 should be reported separately as a false acceptance rate, with paired
 positive/negative examples when a small wording change is safety-significant.
 
+### Rejection responses
+
+Rejected interpretations include both a stable category and a concise,
+user-facing response:
+
+```python
+result = matcher.interpret("clippy")
+
+assert result.rejection_code == "no_action"
+assert result.response == (
+    "Sorry, I see you're targeting 'Clippy' (a lawn mower), "
+    "but I don't know what action to take."
+)
+```
+
+`reason` remains the detailed matcher diagnostic for debugging. It should not
+be spoken to a user. `rejection_code` lets an integration choose a different
+delivery policy, while `response` is ready to use when no fallback LLM is
+available. Accepted interpretations have neither field.
+
+All response wording, action labels, device/domain labels, and target phrase
+templates live in `data/responses.yaml`. Supply `responses_path` to
+`GazetteerMatcher` or `--responses` to the CLI to replace them for another
+deployment or language.
+
 The runner excludes combinations declaring `wildcard_slots`, prints coverage
 by intent and categorized failure samples, and exits successfully even when
 sentences are uncovered. Use `--json` for machine-readable output or
@@ -246,6 +271,7 @@ Override any data file:
 gazetteer-match match 'turn on the office lamp' \
   --home my-home.yaml \
   --vocabulary my-vocabulary.yaml \
+  --responses my-responses.yaml \
   --intents path/to/OHF-Voice/intents/intents.yaml
 ```
 
@@ -311,6 +337,13 @@ Exact aliases are tagged first. Pure-Python fuzzy lookup adds additional
 A snapshot of the upstream OHF-Voice slot-combination catalog. The matcher
 loads this dynamically instead of duplicating combinations in Python.
 Combinations with `wildcard_slots` are intentionally ignored.
+
+### `data/responses.yaml`
+
+Contains rejection templates plus localized action, domain, device-class, and
+target labels. The matcher selects a structured rejection category in code,
+but all words presented to the user come from this file. Missing specialized
+templates fall back to its `generic` response.
 
 ## Number words with Unicode RBNF
 

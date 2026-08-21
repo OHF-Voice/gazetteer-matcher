@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any
 
@@ -10,13 +11,13 @@ import yaml
 from .models import Token
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
+def _load_yaml(path: Path | Traversable) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as file_obj:
         return yaml.safe_load(file_obj) or {}
 
 
-def package_data_path(filename: str) -> Path:
-    return Path(str(files("gazetteer_matcher").joinpath("data", filename)))
+def package_data_path(filename: str) -> Traversable:
+    return files("gazetteer_matcher").joinpath("data", filename)
 
 
 @dataclass
@@ -24,6 +25,7 @@ class MatcherConfig:
     vocabulary: dict[str, Any]
     home: dict[str, Any]
     intents: dict[str, Any]
+    responses: dict[str, Any]
 
     @classmethod
     def load(
@@ -32,11 +34,22 @@ class MatcherConfig:
         vocabulary_path: str | Path | None = None,
         home_path: str | Path | None = None,
         intents_path: str | Path | None = None,
+        responses_path: str | Path | None = None,
     ) -> "MatcherConfig":
         vocabulary = _load_yaml(Path(vocabulary_path) if vocabulary_path else package_data_path("vocabulary.yaml"))
         home = _load_yaml(Path(home_path) if home_path else package_data_path("home.yaml"))
         intents = _load_yaml(Path(intents_path) if intents_path else package_data_path("intents.yaml"))
-        return cls(vocabulary=vocabulary, home=home, intents=intents)
+        responses = _load_yaml(
+            Path(responses_path)
+            if responses_path
+            else package_data_path("responses.yaml")
+        )
+        return cls(
+            vocabulary=vocabulary,
+            home=home,
+            intents=intents,
+            responses=responses,
+        )
 
 
 def normalize_tokens(text: str) -> list[Token]:

@@ -16,6 +16,7 @@ from .models import (
     TargetScope,
     Token,
 )
+from .responses import RejectionResponder
 from .schemas import IntentCatalog, IntentCombination
 from .tagger import SpanTagger
 
@@ -72,11 +73,13 @@ class GazetteerMatcher:
         vocabulary_path: str | Path | None = None,
         home_path: str | Path | None = None,
         intents_path: str | Path | None = None,
+        responses_path: str | Path | None = None,
     ) -> None:
         self.config = MatcherConfig.load(
             vocabulary_path=vocabulary_path,
             home_path=home_path,
             intents_path=intents_path,
+            responses_path=responses_path,
         )
         self.catalog = IntentCatalog(self.config.intents)
         self.global_scope_domains: dict[str, set[str]] = {}
@@ -86,6 +89,10 @@ class GazetteerMatcher:
                     combo.inferred_domains
                 )
         self.tagger = SpanTagger(self.config)
+        self.responder = RejectionResponder(
+            self.config.responses,
+            self.config.home,
+        )
         self.actions: dict[str, dict[str, Any]] = self.config.vocabulary.get("actions") or {}
         anaphora = self.config.vocabulary.get("anaphora") or {}
         self.anaphora_actions = set(anaphora.get("actions") or [])
@@ -1320,6 +1327,74 @@ class GazetteerMatcher:
             return None, True, "multiple equally good semantic interpretations"
         return best, False, None
 
+    def _rejected_interpretation(
+        self,
+        *,
+        text: str,
+        tokens: list[Token],
+        spans: list[Span],
+        frames: list[FrameCandidate],
+        reason: str,
+        rejection_code: str,
+        segments: list[SegmentDebug],
+        ambiguous: bool = False,
+    ) -> Interpretation:
+        active = segments[-1] if segments else SegmentDebug(0, len(tokens))
+        return Interpretation(
+            text=text,
+            tokens=tokens,
+            spans=spans,
+            frames=frames,
+            accepted=False,
+            ambiguous=ambiguous,
+            reason=reason,
+            rejection_code=rejection_code,
+            response=self.responder.render(
+                rejection_code,
+                spans=spans,
+                candidates=active.frame_candidates,
+                actions=active.action_candidates,
+            ),
+            segments=segments,
+        )
+
+    def _candidate_rejection_code(
+        self,
+        candidates: list[FrameCandidate],
+        *,
+        ambiguous: bool,
+        spans: list[Span],
+    ) -> str:
+        if ambiguous:
+            return "ambiguous"
+        if not candidates:
+            has_target = any(
+                span.tag in {"name", "area", "floor", "domain", "device_class"}
+                for span in spans
+            )
+            return "no_action" if has_target else "missing_target"
+
+        best = candidates[0]
+        # Even tolerated residual words make a constraint failure less
+        # trustworthy to explain as a precise target/action incompatibility.
+        # Prefer the neutral partial-understanding response in that case.
+        if any("scope conflicts" in violation for violation in best.violations):
+            return "conflicting_scope"
+        if best.unexplained_tokens:
+            return "unexplained"
+        if any(
+            phrase in violation
+            for violation in best.violations
+            for phrase in (
+                "incompatible with virtual action",
+                "not allowed by name_domains",
+                "not allowed by inferred_domains",
+                "requires a known compatible entity domain",
+            )
+        ):
+            return "unsupported_target_action"
+        return "generic"
+
     @staticmethod
     def _target_context(frame: FrameCandidate) -> dict[str, Any]:
         return {
@@ -1385,21 +1460,26 @@ class GazetteerMatcher:
         segment: tuple[int, int],
         actions: list[Span],
         previous_targets: tuple[TargetReference, ...],
-    ) -> tuple[Span | None, TargetReference | None, str | None]:
+    ) -> tuple[Span | None, TargetReference | None, str | None, str | None]:
         anaphors = [
             span
             for span in spans
             if span.tag == "anaphor" and self._in_segment(span, segment)
         ]
         if not anaphors:
-            return None, None, None
+            return None, None, None, None
         # "It" is also a grammatical subject in queries such as "what time
         # is it?". Anaphora is opt-in by action, so leave the token alone when
         # no supported device action is present.
         if not any(str(action.value) in self.anaphora_actions for action in actions):
-            return None, None, None
+            return None, None, None, None
         if len(anaphors) != 1:
-            return None, None, "only one follow-up pronoun is supported"
+            return (
+                None,
+                None,
+                "anaphora_multiple_pronouns",
+                "only one follow-up pronoun is supported",
+            )
         anaphor = anaphors[0]
         if any(
             span.tag in {"name", "area", "floor", "domain", "device_class"}
@@ -1408,21 +1488,33 @@ class GazetteerMatcher:
             return (
                 None,
                 None,
+                "anaphora_explicit_target",
                 "a follow-up pronoun cannot be combined with an explicit target",
             )
         if not previous_targets:
-            return None, None, f"no previous target for {anaphor.text!r}"
+            return (
+                None,
+                None,
+                "anaphora_missing_target",
+                f"no previous target for {anaphor.text!r}",
+            )
         if len(previous_targets) != 1:
-            return None, None, "multiple previous targets are not supported"
+            return (
+                None,
+                None,
+                "anaphora_multiple_targets",
+                "multiple previous targets are not supported",
+            )
 
         target = previous_targets[0]
         if anaphor.value == "singular" and target.scope != "entity":
             return (
                 None,
                 None,
+                "anaphora_singular_group",
                 f"{anaphor.text!r} requires a single named entity target",
             )
-        return anaphor, target, None
+        return anaphor, target, None, None
 
     def interpret(
         self,
@@ -1467,17 +1559,22 @@ class GazetteerMatcher:
             if not actions:
                 debug.rejection_reason = "no action recognized or inherited"
                 segment_debug.append(debug)
-                return Interpretation(
+                return self._rejected_interpretation(
                     text=text,
                     tokens=tokens,
                     spans=spans,
                     frames=[],
-                    accepted=False,
                     reason=debug.rejection_reason,
+                    rejection_code="no_action",
                     segments=segment_debug,
                 )
 
-            anaphor_span, previous_target, anaphora_error = self._resolve_anaphora(
+            (
+                anaphor_span,
+                previous_target,
+                anaphora_code,
+                anaphora_error,
+            ) = self._resolve_anaphora(
                 spans,
                 segment,
                 actions,
@@ -1486,13 +1583,13 @@ class GazetteerMatcher:
             if anaphora_error is not None:
                 debug.rejection_reason = anaphora_error
                 segment_debug.append(debug)
-                return Interpretation(
+                return self._rejected_interpretation(
                     text=text,
                     tokens=tokens,
                     spans=spans,
                     frames=chosen_frames,
-                    accepted=False,
                     reason=anaphora_error,
+                    rejection_code=anaphora_code or "generic",
                     segments=segment_debug,
                 )
 
@@ -1536,22 +1633,28 @@ class GazetteerMatcher:
                 )
                 for candidate in candidates
             )
+            rejection_code = self._candidate_rejection_code(
+                candidates,
+                ambiguous=segment_ambiguous,
+                spans=spans,
+            )
             if anaphor_span is not None and not has_anaphoric_candidate:
                 reason = "previous target is not supported by this action"
+                rejection_code = "unsupported_target_action"
             debug.chosen = chosen
             debug.rejection_reason = reason
             segment_debug.append(debug)
             if segment_ambiguous:
                 ambiguous = True
             if chosen is None:
-                return Interpretation(
+                return self._rejected_interpretation(
                     text=text,
                     tokens=tokens,
                     spans=spans,
                     frames=chosen_frames,
-                    accepted=False,
                     ambiguous=ambiguous,
-                    reason=reason,
+                    reason=reason or "command was rejected",
+                    rejection_code=rejection_code,
                     segments=segment_debug,
                 )
             chosen_frames.append(chosen)

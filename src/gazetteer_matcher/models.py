@@ -106,6 +106,8 @@ class Interpretation:
     accepted: bool
     ambiguous: bool = False
     reason: str | None = None
+    rejection_code: str | None = None
+    response: str | None = None
     segments: list[SegmentDebug] = field(default_factory=list)
 
     @property

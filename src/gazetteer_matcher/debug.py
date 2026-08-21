@@ -102,6 +102,10 @@ def render_interpretation(result: Interpretation, *, candidate_limit: int = 12) 
         lines.append("AMBIGUOUS: True")
     if result.reason:
         lines.append(f"REASON: {result.reason}")
+    if result.rejection_code:
+        lines.append(f"REJECTION_CODE: {result.rejection_code}")
+    if result.response:
+        lines.append(f"RESPONSE: {result.response}")
     if result.frames:
         lines.append("FRAMES:")
         for frame in result.frames:
@@ -117,6 +121,8 @@ def interpretation_to_dict(result: Interpretation, *, include_candidates: bool =
         "accepted": result.accepted,
         "ambiguous": result.ambiguous,
         "reason": result.reason,
+        "rejection_code": result.rejection_code,
+        "response": result.response,
         "tokens": [asdict(token) for token in result.tokens],
         "spans": [
             {

@@ -32,3 +32,6 @@ def test_english_hard_rejection(matcher, case):
         f"unexpectedly accepted {case['sentence']!r} as "
         f"{[(frame.intent, frame.slots) for frame in result.frames]!r}"
     )
+    assert result.rejection_code
+    assert result.response
+    assert len(result.response) <= 180

@@ -78,6 +78,26 @@ for frame in result.frames:
     print(frame.intent, frame.combination, frame.slots)
 ```
 
+Configuration may be supplied directly as dictionaries or loaded from YAML
+paths. The `*_path` keywords remain available for compatibility:
+
+```python
+matcher = GazetteerMatcher(
+    home={
+        "areas": {"kitchen": {"name": "Kitchen"}},
+        "floors": {},
+        "entities": {
+            "light.kitchen": {
+                "name": "Kitchen Light",
+                "domain": "light",
+                "area": "kitchen",
+            }
+        },
+    },
+    responses="my-responses.yaml",
+)
+```
+
 With the sample `home.yaml`, this yields approximately:
 
 ```text
@@ -256,9 +276,9 @@ delivery policy, while `response` is ready to use when no fallback LLM is
 available. Accepted interpretations have neither field.
 
 All response wording, action labels, device/domain labels, and target phrase
-templates live in `data/responses.yaml`. Supply `responses_path` to
-`GazetteerMatcher` or `--responses` to the CLI to replace them for another
-deployment or language.
+templates live in `data/responses.yaml`. Supply `responses` (a dictionary or
+YAML path), the compatible `responses_path`, or `--responses` to the CLI to
+replace them for another deployment or language.
 
 The runner excludes combinations declaring `wildcard_slots`, prints coverage
 by intent and categorized failure samples, and exits successfully even when

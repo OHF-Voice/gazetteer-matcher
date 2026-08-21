@@ -94,7 +94,7 @@ def test_response_templates_can_be_replaced(tmp_path):
         ),
         encoding="utf-8",
     )
-    matcher = GazetteerMatcher(responses_path=responses_path)
+    matcher = GazetteerMatcher(responses=responses_path)
 
     result = matcher.interpret("clippy")
     assert result.rejection_code == "no_action"

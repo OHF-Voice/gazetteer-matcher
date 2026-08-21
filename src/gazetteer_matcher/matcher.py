@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from itertools import product
-from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from .config import MatcherConfig, normalize_tokens
+from .config import ConfigSource, MatcherConfig, normalize_tokens
 from .models import (
     FrameCandidate,
     Interpretation,
@@ -70,12 +69,20 @@ class GazetteerMatcher:
     def __init__(
         self,
         *,
-        vocabulary_path: str | Path | None = None,
-        home_path: str | Path | None = None,
-        intents_path: str | Path | None = None,
-        responses_path: str | Path | None = None,
+        vocabulary: ConfigSource | None = None,
+        home: ConfigSource | None = None,
+        intents: ConfigSource | None = None,
+        responses: ConfigSource | None = None,
+        vocabulary_path: ConfigSource | None = None,
+        home_path: ConfigSource | None = None,
+        intents_path: ConfigSource | None = None,
+        responses_path: ConfigSource | None = None,
     ) -> None:
         self.config = MatcherConfig.load(
+            vocabulary=vocabulary,
+            home=home,
+            intents=intents,
+            responses=responses,
             vocabulary_path=vocabulary_path,
             home_path=home_path,
             intents_path=intents_path,

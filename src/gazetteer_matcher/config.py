@@ -11,6 +11,10 @@ import yaml
 from .models import Token
 
 
+ConfigData = dict[str, Any]
+ConfigSource = str | Path | ConfigData
+
+
 def _load_yaml(path: Path | Traversable) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as file_obj:
         return yaml.safe_load(file_obj) or {}
@@ -18,6 +22,27 @@ def _load_yaml(path: Path | Traversable) -> dict[str, Any]:
 
 def package_data_path(filename: str) -> Traversable:
     return files("gazetteer_matcher").joinpath("data", filename)
+
+
+def _select_source(
+    name: str,
+    source: ConfigSource | None,
+    path_source: ConfigSource | None,
+) -> ConfigSource | None:
+    if source is not None and path_source is not None:
+        raise TypeError(f"pass either {name} or {name}_path, not both")
+    return source if source is not None else path_source
+
+
+def _load_source(
+    source: ConfigSource | None,
+    default_filename: str,
+) -> ConfigData:
+    if source is None:
+        return _load_yaml(package_data_path(default_filename))
+    if isinstance(source, dict):
+        return source
+    return _load_yaml(Path(source))
 
 
 @dataclass
@@ -31,24 +56,26 @@ class MatcherConfig:
     def load(
         cls,
         *,
-        vocabulary_path: str | Path | None = None,
-        home_path: str | Path | None = None,
-        intents_path: str | Path | None = None,
-        responses_path: str | Path | None = None,
+        vocabulary: ConfigSource | None = None,
+        home: ConfigSource | None = None,
+        intents: ConfigSource | None = None,
+        responses: ConfigSource | None = None,
+        vocabulary_path: ConfigSource | None = None,
+        home_path: ConfigSource | None = None,
+        intents_path: ConfigSource | None = None,
+        responses_path: ConfigSource | None = None,
     ) -> "MatcherConfig":
-        vocabulary = _load_yaml(Path(vocabulary_path) if vocabulary_path else package_data_path("vocabulary.yaml"))
-        home = _load_yaml(Path(home_path) if home_path else package_data_path("home.yaml"))
-        intents = _load_yaml(Path(intents_path) if intents_path else package_data_path("intents.yaml"))
-        responses = _load_yaml(
-            Path(responses_path)
-            if responses_path
-            else package_data_path("responses.yaml")
+        vocabulary_source = _select_source(
+            "vocabulary", vocabulary, vocabulary_path
         )
+        home_source = _select_source("home", home, home_path)
+        intents_source = _select_source("intents", intents, intents_path)
+        responses_source = _select_source("responses", responses, responses_path)
         return cls(
-            vocabulary=vocabulary,
-            home=home,
-            intents=intents,
-            responses=responses,
+            vocabulary=_load_source(vocabulary_source, "vocabulary.yaml"),
+            home=_load_source(home_source, "home.yaml"),
+            intents=_load_source(intents_source, "intents.yaml"),
+            responses=_load_source(responses_source, "responses.yaml"),
         )
 
 

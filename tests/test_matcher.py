@@ -22,6 +22,37 @@ def test_support_catalog(matcher):
     assert summary["unmapped_intents"] == ["HassBroadcast", "HassRespond"]
 
 
+def test_configuration_can_be_supplied_as_dicts():
+    defaults = GazetteerMatcher().config
+    dict_matcher = GazetteerMatcher(
+        vocabulary=defaults.vocabulary,
+        home=defaults.home,
+        intents=defaults.intents,
+        responses=defaults.responses,
+    )
+
+    result = dict_matcher.interpret("turn on the kitchen lights")
+    assert result.accepted
+    assert result.frames[0].slots == {"domain": "light", "area": "kitchen"}
+
+
+def test_legacy_path_keywords_also_accept_dicts():
+    defaults = GazetteerMatcher().config
+    dict_matcher = GazetteerMatcher(home_path=defaults.home)
+
+    assert dict_matcher.interpret("turn on the kitchen lights").accepted
+
+
+def test_configuration_rejects_source_and_path_together():
+    home = GazetteerMatcher().config.home
+
+    with pytest.raises(
+        TypeError,
+        match="pass either home or home_path, not both",
+    ):
+        GazetteerMatcher(home=home, home_path=home)
+
+
 def test_exact_turn_on(matcher):
     result = matcher.interpret("turn on the kitchen lights")
     assert result.accepted

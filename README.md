@@ -183,9 +183,8 @@ filters.
 
 ### Rejection tests
 
-Keep negative examples separate from positive intent coverage so the two
-metrics cannot mask one another. A useful layout is
-`tests/rejections/en.yaml`, with records such as:
+Negative examples live in `tests/rejections/en.yaml`, separate from positive
+intent coverage so the two metrics cannot mask one another. Records look like:
 
 ```yaml
 cases:
@@ -198,11 +197,11 @@ cases:
     category: incomplete_command
 ```
 
-A data-driven test should call `interpret` with any supplied context and assert
-only that `accepted` is false; rejection-reason strings are diagnostic and too
-brittle to make part of the contract. Report these separately as a false
-acceptance rate, and add paired positive/negative examples when a small wording
-change is safety-significant.
+The data-driven `tests/test_rejections.py` test calls `interpret` with any
+supplied context and asserts only that `accepted` is false; rejection-reason
+strings are diagnostic and too brittle to make part of the contract. These
+should be reported separately as a false acceptance rate, with paired
+positive/negative examples when a small wording change is safety-significant.
 
 The runner excludes combinations declaring `wildcard_slots`, prints coverage
 by intent and categorized failure samples, and exits successfully even when

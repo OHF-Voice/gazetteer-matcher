@@ -1,0 +1,52 @@
+language: en
+
+# These are hard negatives: the gazetteer matcher must not accept any case as
+# a Home Assistant intent. Categories are reporting labels, not matcher input.
+cases:
+  # A target or property without an actionable command.
+  - sentence: kitchen
+    category: incomplete_command
+  - sentence: ceiling lights
+    category: incomplete_command
+  - sentence: clippy
+    category: incomplete_command
+  - sentence: bedroom brightness
+    category: incomplete_command
+
+  # Recognized semantic evidence that does not form one coherent intent.
+  - sentence: turn on seventeen red kitchen lights
+    category: contradictory_semantic_evidence
+  - sentence: set the bedroom lamp banana potato tomato
+    category: contradictory_semantic_evidence
+  - sentence: pause the blue kitchen window
+    category: contradictory_semantic_evidence
+
+  # Commands whose requested action is not supported for the target type.
+  - sentence: open the thermostat
+    category: unsupported_target_action
+  - sentence: make clippy dance
+    category: unsupported_target_action
+  - sentence: paint the kitchen lights red
+    category: unsupported_target_action
+
+  # Deliberately underspecified property commands should stay ambiguous.
+  - sentence: set the bedroom to fifty percent
+    category: ambiguous_home_command
+  - sentence: bedroom fifty percent
+    category: ambiguous_home_command
+
+  # Requests that belong to a conversational fallback, not an HA intent.
+  - sentence: write a poem about my kitchen lights
+    category: downstream_llm
+  - sentence: tell me a story about clippy
+    category: downstream_llm
+  - sentence: suggest a movie for tonight
+    category: downstream_llm
+  - sentence: what should I cook for dinner
+    category: downstream_llm
+
+  # Context must not turn a noun phrase into a command by itself.
+  - sentence: ceiling light
+    context_area: Kitchen
+    context_floor: Ground Floor
+    category: incomplete_command

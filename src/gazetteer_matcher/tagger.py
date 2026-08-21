@@ -674,7 +674,19 @@ class SpanTagger:
                     if span.tag in {"name", "area", "floor", "domain"}
                     or (span.tag == "cue" and span.value == "context_here")
                 ]
-                if property_spans and property_targets:
+                recognized_indexes: set[int] = set()
+                for span in combined:
+                    recognized_indexes.update(
+                        span.meta.get("consumed_indexes")
+                        or range(span.start, span.end)
+                    )
+                unmatched_words = [
+                    token
+                    for token in tokens
+                    if token.index not in recognized_indexes
+                    and token.text != "turn"
+                ]
+                if property_spans and property_targets and not unmatched_words:
                     turn_token = next(
                         (token for token in tokens if token.text == "turn"),
                         None,

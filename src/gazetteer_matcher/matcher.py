@@ -70,6 +70,12 @@ class GazetteerMatcher:
             intents_path=intents_path,
         )
         self.catalog = IntentCatalog(self.config.intents)
+        self.global_scope_domains: dict[str, set[str]] = {}
+        for combo in self.catalog.all:
+            if combo.context_area is False:
+                self.global_scope_domains.setdefault(combo.intent, set()).update(
+                    combo.inferred_domains
+                )
         self.tagger = SpanTagger(self.config)
         self.actions: dict[str, dict[str, Any]] = self.config.vocabulary.get("actions") or {}
         self.combo_cues: dict[str, dict[str, Any]] = self.config.vocabulary.get("combination_cues") or {}
@@ -802,6 +808,49 @@ class GazetteerMatcher:
                 f"domain {domain!r} not allowed by inferred_domains"
             )
 
+        # Quantity and geographic scope are independent for device controls.
+        # Keep this interpretation local to turn-on/off intents: the same
+        # words can be ordinary slot values elsewhere (for example, "is Jane
+        # in the home" uses HOME as a person state rather than device scope).
+        if intent in {"HassTurnOn", "HassTurnOff"}:
+            has_quantifier_all = "quantifier_all" in cue_values
+            has_scope_home = "scope_home" in cue_values
+            has_context_here = "context_here" in cue_values
+            has_location_evidence = any(
+                span.tag in {"area", "floor"} for span in local_spans
+            )
+            has_name_evidence = any(span.tag == "name" for span in local_spans)
+            is_global_scope = combo.context_area is False
+
+            if has_scope_home and (
+                has_location_evidence or has_name_evidence or has_context_here
+            ):
+                violations.append("home-wide scope conflicts with a local target")
+            elif is_global_scope:
+                if has_location_evidence or has_name_evidence or has_context_here:
+                    violations.append("global scope conflicts with a local target")
+                if not (has_scope_home or has_quantifier_all):
+                    violations.append("global scope requires an all/home-wide cue")
+            elif has_scope_home:
+                violations.append("home-wide cue requires a global combination")
+
+            # With no narrower scope, an all-quantifier prefers a global
+            # combination when this intent/domain actually supports one. If it
+            # does not (for example fans), the context-area combination remains
+            # valid.
+            if (
+                combo.context_area is True
+                and has_quantifier_all
+                and not has_context_here
+                and not has_location_evidence
+                and not has_name_evidence
+                and domain is not None
+            ):
+                if domain in self.global_scope_domains.get(intent, set()):
+                    violations.append(
+                        "unscoped all-quantifier prefers supported global scope"
+                    )
+
         state_option = selected.get("state")
         if (
             state_option
@@ -868,6 +917,9 @@ class GazetteerMatcher:
 
         cue_cfg = self.combo_cues.get(f"{intent}.{combo.name}", {})
         allowed_cues = set(cue_cfg.get("require_cues") or [])
+        allowed_cues.add("quantifier_all")
+        if combo.context_area is False:
+            allowed_cues.add("scope_home")
         if combo.context_area:
             allowed_cues.add("context_here")
         for span in local_spans:

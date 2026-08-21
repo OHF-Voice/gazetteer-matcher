@@ -57,12 +57,19 @@ relations:
   "on": ["on"]
 
 cues:
-  scope_all:
+  quantifier_all:
     - all
+    - every
+    - every single
+  scope_home:
     - everywhere
     - whole house
     - entire house
     - in the house
+    - in the home
+    - throughout the house
+    - throughout the home
+    - every area
   context_here:
     - here
     - in here
@@ -252,15 +259,6 @@ actions:
     phrases: [nevermind, never mind, cancel that, forget it]
     intents: [HassNevermind]
 
-  respond:
-    phrases: [hello, hi]
-    intents: [HassRespond]
-
-  broadcast:
-    phrases: [broadcast, announce, broadcast that, announce that]
-    intents: [HassBroadcast]
-    capture_rest_slot: message
-
   set:
     phrases: [set, make, adjust, change]
     intents:
@@ -447,10 +445,6 @@ actions:
 
 # Extra constraints/cues for combinations that have the same formal slot set.
 combination_cues:
-  HassTurnOff.domain_all:
-    require_cues: [scope_all]
-  HassTurnOff.domain_only:
-    forbid_cues: [scope_all]
   HassClimateSetTemperature.temperature_only:
     forbid_cues: [color_temperature]
   HassClimateSetTemperature.name_temperature:

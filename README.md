@@ -361,6 +361,22 @@ The inheritance is deliberately conservative: only a unique value is shared,
 and an action-inherited segment with no local target is required to retain the
 previous target rather than silently changing scope.
 
+## Quantity and scope
+
+Quantity words such as `all` and `every` do not determine location. They apply
+within the scope selected by the rest of the command:
+
+- a named area or floor selects that location
+- `here` selects the supplied context area
+- `everywhere` or `in the house` selects the whole home
+- an unscoped `all` uses a global combination when the intent/domain supports
+  one; otherwise it uses the context-area combination
+
+For example, `turn all the lights in the kitchen off` targets the kitchen,
+`turn off all the fans` uses the context area, and `turn all lights off` uses
+the whole-house light combination. Conflicting local and home-wide scope, such
+as `kitchen lights everywhere`, is rejected.
+
 ## Candidate selection
 
 Candidates are compared lexicographically. Conceptually:
@@ -416,6 +432,7 @@ It additionally enforces:
 - virtual-action domain constraints
 - entity/area and entity/floor consistency
 - context-area materialization and duplicate-name context ranking
+- independent quantity and geographic-scope constraints
 - device-class/domain compatibility
 - explicit combination cues configured in YAML
 - no incompatible reuse of the same lexical evidence for multiple slots

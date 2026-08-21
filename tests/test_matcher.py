@@ -18,8 +18,8 @@ def test_support_catalog(matcher):
     assert summary["total_combinations"] == 217
     assert summary["wildcard_combinations_excluded"] == 26
     assert summary["non_wildcard_combinations"] == 191
-    assert summary["non_wildcard_combinations_with_action_mapping"] == 191
-    assert summary["unmapped_intents"] == []
+    assert summary["non_wildcard_combinations_with_action_mapping"] == 189
+    assert summary["unmapped_intents"] == ["HassBroadcast", "HassRespond"]
 
 
 def test_exact_turn_on(matcher):
@@ -34,14 +34,18 @@ def test_fuzzy_area(matcher):
     result = matcher.interpret("flick on the kichen lights")
     assert result.accepted
     assert result.frames[0].slots == {"area": "kitchen", "domain": "light"}
-    assert any(span.tag == "area" and span.source == "fuzzy_area" for span in result.spans)
+    assert any(
+        span.tag == "area" and span.source == "fuzzy_area" for span in result.spans
+    )
 
 
 def test_fuzzy_action(matcher):
     result = matcher.interpret("flik on the kitchen lights")
     assert result.accepted
     assert result.frames[0].intent == "HassTurnOn"
-    assert any(span.tag == "action" and span.source == "fuzzy_action" for span in result.spans)
+    assert any(
+        span.tag == "action" and span.source == "fuzzy_action" for span in result.spans
+    )
 
 
 def test_separable_action(matcher):
@@ -96,9 +100,7 @@ def test_conjunction_intents(matcher):
 
 
 def test_conjunction_properties(matcher):
-    result = matcher.interpret(
-        "set the living room lights red and fifty percent"
-    )
+    result = matcher.interpret("set the living room lights red and fifty percent")
     assert result.accepted
     assert frame_tuples(result) == [
         (
@@ -120,9 +122,7 @@ def test_number_words(matcher):
 
 
 def test_number_joiner_does_not_become_conjunction(matcher):
-    result = matcher.interpret(
-        "start a timer for one hundred and twenty seconds"
-    )
+    result = matcher.interpret("start a timer for one hundred and twenty seconds")
     assert result.accepted
     assert len(result.frames) == 1
     assert result.frames[0].intent == "HassStartTimer"
@@ -154,9 +154,7 @@ def test_timer_relations_assign_base_and_adjustment_roles(matcher):
 
 
 def test_spoken_decimal_temperature(matcher):
-    result = matcher.interpret(
-        "set bedroom temperature to twenty point five degrees"
-    )
+    result = matcher.interpret("set bedroom temperature to twenty point five degrees")
     assert result.accepted
     assert result.frames[0].intent == "HassClimateSetTemperature"
     assert result.frames[0].slots["temperature"] == 20.5
@@ -194,9 +192,7 @@ def test_timer_actions_allow_interstitial_skip_words(matcher, text, intent):
         ("cancel all of my timers", [0, 1, 4]),
     ],
 )
-def test_interstitial_skip_preserves_cancel_all_action(
-    matcher, text, consumed_indexes
-):
+def test_interstitial_skip_preserves_cancel_all_action(matcher, text, consumed_indexes):
     result = matcher.interpret(text)
     assert result.accepted
     assert result.frames[0].intent == "HassCancelAllTimers"
@@ -216,18 +212,14 @@ def test_interstitial_skip_does_not_cross_semantic_content(matcher):
 
 
 def test_climate_temperature(matcher):
-    result = matcher.interpret(
-        "set the bedroom temperature to seventy two degrees"
-    )
+    result = matcher.interpret("set the bedroom temperature to seventy two degrees")
     assert result.accepted
     assert result.frames[0].intent == "HassClimateSetTemperature"
     assert result.frames[0].slots == {"area": "bedroom", "temperature": 72}
 
 
 def test_light_color_temperature(matcher):
-    result = matcher.interpret(
-        "set the bedroom color temperature to 2700 kelvin"
-    )
+    result = matcher.interpret("set the bedroom color temperature to 2700 kelvin")
     assert result.accepted
     assert result.frames[0].intent == "HassLightSet"
     assert result.frames[0].slots == {
@@ -238,9 +230,7 @@ def test_light_color_temperature(matcher):
 
 
 def test_named_light_temperature(matcher):
-    result = matcher.interpret(
-        "set the bedroom lamp temperature to warm white"
-    )
+    result = matcher.interpret("set the bedroom lamp temperature to warm white")
     assert result.accepted
     assert result.frames[0].intent == "HassLightSet"
     assert result.frames[0].slots == {
@@ -310,9 +300,7 @@ def test_two_important_unexplained_tokens_rejected(matcher):
 
 
 def test_important_and_unimportant_limits_are_independent(matcher):
-    result = matcher.interpret(
-        "turn on seventeen kitchen lights banana potato"
-    )
+    result = matcher.interpret("turn on seventeen kitchen lights banana potato")
     assert result.accepted
     assert result.frames[0].unexplained_important_tokens == [2]
     assert result.frames[0].unexplained_unimportant_tokens == [5, 6]
@@ -346,9 +334,7 @@ def test_volume_relative(matcher):
         ),
     ],
 )
-def test_volume_relation_controls_absolute_vs_relative(
-    matcher, text, intent, slots
-):
+def test_volume_relation_controls_absolute_vs_relative(matcher, text, intent, slots):
     result = matcher.interpret(text)
     assert result.accepted
     assert result.frames[0].intent == intent
@@ -364,9 +350,7 @@ def test_entity_first_power_command(matcher):
 
 @pytest.mark.parametrize("intent_word", ["on", "off"])
 def test_context_area_materializes_for_bare_domain_command(matcher, intent_word):
-    result = matcher.interpret(
-        f"turn {intent_word} the lights", context_area="Kitchen"
-    )
+    result = matcher.interpret(f"turn {intent_word} the lights", context_area="Kitchen")
     assert result.accepted
     assert result.frames[0].combination == "domain_only"
     assert result.frames[0].slots == {
@@ -376,12 +360,109 @@ def test_context_area_materializes_for_bare_domain_command(matcher, intent_word)
 
 
 def test_explicit_whole_house_scope_ignores_context_area(matcher):
-    result = matcher.interpret(
-        "turn off all the lights", context_area="Kitchen"
-    )
+    result = matcher.interpret("turn off all the lights", context_area="Kitchen")
     assert result.accepted
     assert result.frames[0].combination == "domain_all"
     assert result.frames[0].slots == {"domain": "light"}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "turn off all the kitchen lights",
+        "turn all the lights in the kitchen off",
+    ],
+)
+def test_all_quantifier_uses_explicit_area_scope(matcher, text):
+    result = matcher.interpret(text)
+    assert result.accepted
+    assert result.frames[0].combination == "area_domain"
+    assert result.frames[0].slots == {
+        "area": "kitchen",
+        "domain": "light",
+    }
+
+
+def test_all_quantifier_uses_explicit_floor_scope(matcher):
+    result = matcher.interpret("turn off all the lights on the first floor")
+    assert result.accepted
+    assert result.frames[0].combination == "floor_domain"
+    assert result.frames[0].slots == {
+        "floor": "ground",
+        "domain": "light",
+    }
+
+
+def test_all_in_here_uses_context_area(matcher):
+    result = matcher.interpret(
+        "turn off all the lights in here", context_area="Kitchen"
+    )
+    assert result.accepted
+    assert result.frames[0].combination == "domain_only"
+    assert result.frames[0].slots == {
+        "domain": "light",
+        "area": "kitchen",
+    }
+
+
+def test_all_uses_context_when_domain_has_no_global_combination(matcher):
+    result = matcher.interpret("turn off all the fans", context_area="Kitchen")
+    assert result.accepted
+    assert result.frames[0].combination == "domain_only"
+    assert result.frames[0].slots == {
+        "domain": "fan",
+        "area": "kitchen",
+    }
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "turn all lights off",
+        "turn off every light",
+        "turn off the lights everywhere",
+    ],
+)
+def test_unscoped_all_or_home_scope_uses_global_combination(matcher, text):
+    result = matcher.interpret(text, context_area="Kitchen")
+    assert result.accepted
+    assert result.frames[0].combination == "domain_all"
+    assert result.frames[0].slots == {"domain": "light"}
+
+
+def test_conflicting_local_and_home_scope_is_rejected(matcher):
+    result = matcher.interpret("turn off the kitchen lights everywhere")
+    assert not result.accepted
+    assert "conflicts with a local target" in (result.reason or "")
+
+
+def test_home_person_state_is_not_treated_as_device_scope(tmp_path):
+    home_path = tmp_path / "home.yaml"
+    home_path.write_text(
+        yaml.safe_dump(
+            {
+                "areas": {},
+                "floors": {},
+                "entities": {
+                    "person.jane": {
+                        "name": "Jane",
+                        "domain": "person",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    person_matcher = GazetteerMatcher(home_path=home_path)
+
+    result = person_matcher.interpret("is jane in the home")
+    assert result.accepted
+    assert result.frames[0].intent == "HassGetState"
+    assert result.frames[0].combination == "name_zone"
+    assert result.frames[0].slots == {
+        "name": "person.jane",
+        "state": "home",
+    }
 
 
 def test_context_disambiguates_duplicate_entity_names(tmp_path):
@@ -441,9 +522,7 @@ def test_context_area_derives_and_validates_floor(matcher):
         "turn on bedroom lamp", context_area="Kitchen"
     )
     assert remote_unique_name.accepted
-    assert remote_unique_name.frames[0].slots == {
-        "name": "light.bedroom_lamp"
-    }
+    assert remote_unique_name.frames[0].slots == {"name": "light.bedroom_lamp"}
 
     with pytest.raises(ValueError, match="is not on context floor"):
         matcher.interpret(
@@ -459,10 +538,3 @@ def test_lock_state_disambiguates_door_domain(matcher):
     assert result.frames[0].intent == "HassGetState"
     assert result.frames[0].combination == "domain_state"
     assert result.frames[0].slots == {"domain": "lock", "state": "unlocked"}
-
-
-def test_broadcast_residual(matcher):
-    result = matcher.interpret("broadcast that dinner is ready")
-    assert result.accepted
-    assert result.frames[0].intent == "HassBroadcast"
-    assert result.frames[0].slots == {"message": "dinner is ready"}

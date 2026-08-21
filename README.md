@@ -105,6 +105,38 @@ when several areas contain an entity named `Ceiling Light`, the entity in the
 context area wins; context floor is a secondary fallback. Without context the
 same duplicate-name match remains ambiguous.
 
+## Follow-up targets
+
+The matcher is stateless, but a caller may pass the targets from the most
+recent successful interpretation to resolve a small set of explicit follow-up
+phrases:
+
+```python
+previous = matcher.interpret("open the bedroom blinds")
+result = matcher.interpret(
+    "close them",
+    previous_targets=previous.targets,
+)
+
+assert result.frames[0].slots == {"name": "cover.bedroom_blinds"}
+```
+
+Only `it` and `them` trigger target reuse. The modifiers `back` and `again`
+are accepted with those pronouns, and reuse is limited to turn-on, turn-off,
+open, and close actions. `it` requires one named entity; `them` may also reuse
+an area, floor, or whole-home selector. The current implementation rejects
+multiple previous target references, pronouns mixed with an explicit target,
+and any action whose existing intent/domain constraints do not support the
+target.
+
+`Interpretation.targets` is empty for rejected interpretations, so a partial
+multi-command match cannot accidentally replace conversation state. Previous
+targets are ignored unless an explicit supported pronoun is present. The
+caller remains responsible for deciding how recent a successful turn must be
+before passing its targets back to the matcher. A context-area selector is
+reusable only when `context_area` was supplied and therefore materialized as a
+concrete area in the original frame.
+
 ## CLI/debug tooling
 
 Interpret normally:

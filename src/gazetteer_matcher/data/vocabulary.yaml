@@ -19,6 +19,15 @@ acceptance:
   max_unexplained_important_tokens: 1
   max_unexplained_unimportant_tokens: 2
 
+# Deliberately small follow-up vocabulary. Pronouns only resolve when the
+# caller supplies a previous target; modifiers never introduce a target.
+anaphora:
+  pronouns:
+    singular: [it]
+    plural: [them]
+  modifiers: [back, again]
+  actions: [turn_on, turn_off, open, close]
+
 skip_phrases:
   - the
   - a

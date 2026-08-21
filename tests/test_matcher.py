@@ -436,6 +436,132 @@ def test_conflicting_local_and_home_scope_is_rejected(matcher):
     assert "conflicts with a local target" in (result.reason or "")
 
 
+def test_named_entity_can_be_reused_by_it(matcher):
+    previous = matcher.interpret("turn off the bedroom lamp")
+    assert previous.accepted
+    assert previous.targets[0].scope == "entity"
+    assert previous.targets[0].slots == {"name": "light.bedroom_lamp"}
+
+    result = matcher.interpret(
+        "turn it back on", previous_targets=previous.targets
+    )
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOn"
+    assert result.frames[0].combination == "name_only"
+    assert result.frames[0].slots == {"name": "light.bedroom_lamp"}
+
+
+def test_area_group_can_be_reused_by_them(matcher):
+    previous = matcher.interpret("turn on the kitchen lights")
+    assert previous.accepted
+    assert previous.targets[0].scope == "area"
+
+    result = matcher.interpret("turn them off", previous_targets=previous.targets)
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOff"
+    assert result.frames[0].combination == "area_domain"
+    assert result.frames[0].slots == {
+        "area": "kitchen",
+        "domain": "light",
+    }
+
+
+@pytest.mark.parametrize("text", ["close them", "close it"])
+def test_named_blinds_can_be_reused_by_pronoun(matcher, text):
+    previous = matcher.interpret("open the bedroom blinds")
+    result = matcher.interpret(text, previous_targets=previous.targets)
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOff"
+    assert result.frames[0].slots == {"name": "cover.bedroom_blinds"}
+
+
+def test_again_is_consumed_for_anaphoric_target(matcher):
+    previous = matcher.interpret("close the bedroom blinds")
+    result = matcher.interpret(
+        "open them again", previous_targets=previous.targets
+    )
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOn"
+    assert result.frames[0].slots == {"name": "cover.bedroom_blinds"}
+    assert result.frames[0].unexplained_tokens == []
+
+
+@pytest.mark.parametrize("text", ["turn it back on", "close them"])
+def test_anaphora_requires_a_previous_target(matcher, text):
+    result = matcher.interpret(text)
+    assert not result.accepted
+    assert "no previous target" in (result.reason or "")
+
+
+def test_it_rejects_a_group_target(matcher):
+    previous = matcher.interpret("turn on the kitchen lights")
+    result = matcher.interpret("turn it off", previous_targets=previous.targets)
+    assert not result.accepted
+    assert "single named entity" in (result.reason or "")
+
+
+def test_anaphora_rejects_an_incompatible_action(matcher):
+    previous = matcher.interpret("turn on the bedroom lamp")
+    result = matcher.interpret("close it", previous_targets=previous.targets)
+    assert not result.accepted
+    assert "incompatible with virtual action" in (result.reason or "")
+
+
+def test_anaphora_cannot_be_mixed_with_an_explicit_target(matcher):
+    previous = matcher.interpret("turn off the hallway light")
+    result = matcher.interpret(
+        "turn it and the bedroom lamp on",
+        previous_targets=previous.targets,
+    )
+    assert not result.accepted
+    assert "explicit target" in (result.reason or "")
+
+
+def test_multiple_previous_targets_are_not_resolved(matcher):
+    previous = matcher.interpret("turn on the kitchen and hallway lights")
+    assert len(previous.targets) == 2
+
+    result = matcher.interpret("turn them off", previous_targets=previous.targets)
+    assert not result.accepted
+    assert result.reason == "multiple previous targets are not supported"
+
+
+def test_previous_target_is_ignored_without_anaphor(matcher):
+    previous = matcher.interpret("turn off the bedroom lamp")
+    result = matcher.interpret(
+        "turn on the kitchen lights",
+        previous_targets=previous.targets,
+    )
+    assert result.accepted
+    assert result.frames[0].slots == {
+        "area": "kitchen",
+        "domain": "light",
+    }
+
+
+def test_grammatical_it_does_not_trigger_device_anaphora(matcher):
+    previous = matcher.interpret("turn off the bedroom lamp")
+    result = matcher.interpret(
+        "what time is it",
+        previous_targets=previous.targets,
+    )
+    assert result.accepted
+    assert result.frames[0].intent == "HassGetCurrentTime"
+
+
+def test_home_target_is_not_silently_narrowed_for_follow_up(matcher):
+    previous = matcher.interpret("turn off all the lights")
+    assert previous.targets[0].scope == "home"
+
+    result = matcher.interpret(
+        "turn them back on",
+        context_area="Kitchen",
+        previous_targets=previous.targets,
+    )
+    assert not result.accepted
+    assert result.reason == "previous target is not supported by this action"
+
+
 def test_home_person_state_is_not_treated_as_device_scope(tmp_path):
     home_path = tmp_path / "home.yaml"
     home_path.write_text(

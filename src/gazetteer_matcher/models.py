@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+
+TargetScope = Literal["entity", "area", "floor", "home"]
+_TARGET_SLOTS = ("name", "area", "floor", "domain", "device_class")
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,14 @@ class SlotOption:
     allow_overlap: bool = False
 
 
+@dataclass(frozen=True)
+class TargetReference:
+    """Reusable target selector from a previous successful interpretation."""
+
+    slots: dict[str, Any]
+    scope: TargetScope
+
+
 @dataclass
 class FrameCandidate:
     intent: str
@@ -59,6 +71,7 @@ class FrameCandidate:
     fuzzy_count: int = 0
     fuzzy_distance: float = 0.0
     target_generality: int = 1
+    target_scope: TargetScope | None = None
     violations: list[str] = field(default_factory=list)
     cost: tuple[Any, ...] = ()
 
@@ -94,3 +107,28 @@ class Interpretation:
     ambiguous: bool = False
     reason: str | None = None
     segments: list[SegmentDebug] = field(default_factory=list)
+
+    @property
+    def targets(self) -> tuple[TargetReference, ...]:
+        """Targets suitable for an explicit-pronoun follow-up.
+
+        Failed multi-segment interpretations deliberately expose no targets so
+        callers do not update conversation state from a partially matched
+        command.
+        """
+        if not self.accepted:
+            return ()
+        result: list[TargetReference] = []
+        for frame in self.frames:
+            if frame.target_scope is None:
+                continue
+            slots = {
+                slot: frame.slots[slot]
+                for slot in _TARGET_SLOTS
+                if slot in frame.slots
+            }
+            if slots:
+                result.append(
+                    TargetReference(slots=slots, scope=frame.target_scope)
+                )
+        return tuple(result)

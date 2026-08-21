@@ -3,10 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from itertools import product
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 from .config import MatcherConfig, normalize_tokens
-from .models import FrameCandidate, Interpretation, SegmentDebug, SlotOption, Span, Token
+from .models import (
+    FrameCandidate,
+    Interpretation,
+    SegmentDebug,
+    SlotOption,
+    Span,
+    TargetReference,
+    TargetScope,
+    Token,
+)
 from .schemas import IntentCatalog, IntentCombination
 from .tagger import SpanTagger
 
@@ -78,6 +87,8 @@ class GazetteerMatcher:
                 )
         self.tagger = SpanTagger(self.config)
         self.actions: dict[str, dict[str, Any]] = self.config.vocabulary.get("actions") or {}
+        anaphora = self.config.vocabulary.get("anaphora") or {}
+        self.anaphora_actions = set(anaphora.get("actions") or [])
         self.combo_cues: dict[str, dict[str, Any]] = self.config.vocabulary.get("combination_cues") or {}
         acceptance = self.config.vocabulary.get("acceptance") or {}
         legacy_max_unexplained = acceptance.get("max_unexplained_content_tokens")
@@ -674,11 +685,68 @@ class GazetteerMatcher:
         if numeric:
             return numeric
 
-        residual = self._residual_option(slot, tokens, local_spans, action_span, segment)
-        if residual is not None:
-            return [residual]
+        # residual = self._residual_option(slot, tokens, local_spans, action_span, segment)
+        # if residual is not None:
+        #     return [residual]
 
         return []
+
+    def _anaphoric_selection(
+        self,
+        combo: IntentCombination,
+        target: TargetReference,
+        anaphor_span: Span,
+    ) -> dict[str, SlotOption] | None:
+        """Create one atomic slot bundle from a supplied antecedent.
+
+        Requiring the formal combination slots to exactly match the target
+        selector prevents inherited fields from being mixed with lexical or
+        current-location fields.
+        """
+        target_slots = set(target.slots)
+        if set(combo.slots) != target_slots:
+            return None
+        if target.scope == "home" and combo.context_area is not False:
+            return None
+        if target.scope == "entity" and "name" not in combo.slots:
+            return None
+        if target.scope == "area" and "area" not in combo.slots:
+            return None
+        if target.scope == "floor" and "floor" not in combo.slots:
+            return None
+
+        span = anaphor_span
+        if "name" in target.slots:
+            entity_id = str(target.slots["name"])
+            entity = (self.config.home.get("entities") or {}).get(entity_id)
+            if entity is None:
+                return None
+            entity_area = entity.get("area")
+            area = (self.config.home.get("areas") or {}).get(entity_area) or {}
+            span = replace(
+                anaphor_span,
+                meta={
+                    **anaphor_span.meta,
+                    "entity_id": entity_id,
+                    "name": entity.get("name"),
+                    "domain": entity.get("domain") or entity_id.split(".", 1)[0],
+                    "device_class": entity.get("device_class"),
+                    "area": entity_area,
+                    "floor": entity.get("floor") or area.get("floor"),
+                },
+            )
+
+        return {
+            slot: SlotOption(
+                slot=slot,
+                value=target.slots[slot],
+                spans=(span,),
+                source="anaphora",
+                inherited=True,
+                allow_overlap=True,
+            )
+            for slot in combo.slots
+        }
 
     @staticmethod
     def _options_overlap(options: Iterable[SlotOption]) -> bool:
@@ -808,6 +876,10 @@ class GazetteerMatcher:
                 f"domain {domain!r} not allowed by inferred_domains"
             )
 
+        has_anaphoric_target = any(
+            option.source == "anaphora" for option in selected.values()
+        )
+
         # Quantity and geographic scope are independent for device controls.
         # Keep this interpretation local to turn-on/off intents: the same
         # words can be ordinary slot values elsewhere (for example, "is Jane
@@ -829,7 +901,11 @@ class GazetteerMatcher:
             elif is_global_scope:
                 if has_location_evidence or has_name_evidence or has_context_here:
                     violations.append("global scope conflicts with a local target")
-                if not (has_scope_home or has_quantifier_all):
+                if not (
+                    has_scope_home
+                    or has_quantifier_all
+                    or has_anaphoric_target
+                ):
                     violations.append("global scope requires an all/home-wide cue")
             elif has_scope_home:
                 violations.append("home-wide cue requires a global combination")
@@ -925,6 +1001,11 @@ class GazetteerMatcher:
         for span in local_spans:
             if span.tag == "cue" and span.value in allowed_cues:
                 consumed.update(self._span_indexes(span))
+
+        if any(option.source == "anaphora" for option in selected.values()):
+            for span in local_spans:
+                if span.tag == "anaphora_modifier":
+                    consumed.update(self._span_indexes(span))
 
         # Slot-marker text is syntactic evidence for the slot it names.
         marker_compat = {
@@ -1084,9 +1165,25 @@ class GazetteerMatcher:
             fuzzy_count=fuzzy_count,
             fuzzy_distance=fuzzy_distance,
             target_generality=target_generality,
+            target_scope=self._selection_target_scope(combo, slot_values),
             violations=violations,
             cost=cost,
         )
+
+    @staticmethod
+    def _selection_target_scope(
+        combo: IntentCombination,
+        slots: dict[str, Any],
+    ) -> TargetScope | None:
+        if combo.context_area is False:
+            return "home"
+        if "name" in slots:
+            return "entity"
+        if "area" in slots:
+            return "area"
+        if "floor" in slots:
+            return "floor"
+        return None
 
     def _generate_frames_for_action(
         self,
@@ -1097,6 +1194,8 @@ class GazetteerMatcher:
         visible_spans: list[Span],
         segment: tuple[int, int],
         context: _ResolvedContext,
+        anaphor_span: Span | None = None,
+        previous_target: TargetReference | None = None,
     ) -> list[FrameCandidate]:
         action_key = str(action_span.value)
         action_spec = self.actions.get(action_key) or {}
@@ -1105,6 +1204,31 @@ class GazetteerMatcher:
 
         for intent in action_spec.get("intents") or []:
             for combo in self.catalog.combinations(intent):
+                if (
+                    anaphor_span is not None
+                    and previous_target is not None
+                    and action_key in self.anaphora_actions
+                ):
+                    inherited = self._anaphoric_selection(
+                        combo, previous_target, anaphor_span
+                    )
+                    if inherited is not None:
+                        result.append(
+                            self._frame_from_selection(
+                                intent,
+                                combo,
+                                inherited,
+                                action_key,
+                                action_span,
+                                action_spec,
+                                tokens,
+                                local_spans,
+                                segment,
+                                inherited_action,
+                                context,
+                            )
+                        )
+
                 option_lists: list[list[SlotOption]] = []
                 impossible = False
                 for slot in combo.slots:
@@ -1221,19 +1345,104 @@ class GazetteerMatcher:
                 return False
         return True
 
+    @staticmethod
+    def _normalize_previous_targets(
+        previous_targets: Sequence[TargetReference] | None,
+    ) -> tuple[TargetReference, ...]:
+        targets = tuple(previous_targets or ())
+        allowed_slots = {"name", "area", "floor", "domain", "device_class"}
+        required_by_scope = {
+            "entity": "name",
+            "area": "area",
+            "floor": "floor",
+        }
+        for target in targets:
+            if not isinstance(target, TargetReference):
+                raise TypeError(
+                    "previous_targets must contain TargetReference values"
+                )
+            slots = set(target.slots)
+            if not slots or not slots <= allowed_slots:
+                raise ValueError("previous target has unsupported slots")
+            if target.scope not in {"entity", "area", "floor", "home"}:
+                raise ValueError(
+                    f"previous target has unsupported scope {target.scope!r}"
+                )
+            required = required_by_scope.get(target.scope)
+            if required is not None and required not in slots:
+                raise ValueError(
+                    f"previous target scope {target.scope!r} requires {required!r}"
+                )
+            if target.scope == "home" and slots & {"name", "area", "floor"}:
+                raise ValueError(
+                    "home-scoped previous target cannot contain a local selector"
+                )
+        return targets
+
+    def _resolve_anaphora(
+        self,
+        spans: list[Span],
+        segment: tuple[int, int],
+        actions: list[Span],
+        previous_targets: tuple[TargetReference, ...],
+    ) -> tuple[Span | None, TargetReference | None, str | None]:
+        anaphors = [
+            span
+            for span in spans
+            if span.tag == "anaphor" and self._in_segment(span, segment)
+        ]
+        if not anaphors:
+            return None, None, None
+        # "It" is also a grammatical subject in queries such as "what time
+        # is it?". Anaphora is opt-in by action, so leave the token alone when
+        # no supported device action is present.
+        if not any(str(action.value) in self.anaphora_actions for action in actions):
+            return None, None, None
+        if len(anaphors) != 1:
+            return None, None, "only one follow-up pronoun is supported"
+        anaphor = anaphors[0]
+        if any(
+            span.tag in {"name", "area", "floor", "domain", "device_class"}
+            for span in spans
+        ):
+            return (
+                None,
+                None,
+                "a follow-up pronoun cannot be combined with an explicit target",
+            )
+        if not previous_targets:
+            return None, None, f"no previous target for {anaphor.text!r}"
+        if len(previous_targets) != 1:
+            return None, None, "multiple previous targets are not supported"
+
+        target = previous_targets[0]
+        if anaphor.value == "singular" and target.scope != "entity":
+            return (
+                None,
+                None,
+                f"{anaphor.text!r} requires a single named entity target",
+            )
+        return anaphor, target, None
+
     def interpret(
         self,
         text: str,
         *,
         context_area: str | None = None,
         context_floor: str | None = None,
+        previous_targets: Sequence[TargetReference] | None = None,
     ) -> Interpretation:
-        """Interpret text with optional voice-satellite location context.
+        """Interpret text with optional location and previous-target context.
 
         Context values may be home IDs, names, or aliases. An area's configured
-        floor is used automatically when ``context_floor`` is omitted.
+        floor is used automatically when ``context_floor`` is omitted. Previous
+        targets are considered only when the utterance contains a configured
+        follow-up pronoun.
         """
         context = self._resolve_home_context(context_area, context_floor)
+        resolved_previous_targets = self._normalize_previous_targets(
+            previous_targets
+        )
         tokens = normalize_tokens(text)
         spans = self.tagger.tag(tokens)
         conjunctions = self._select_conjunctions(spans)
@@ -1268,6 +1477,25 @@ class GazetteerMatcher:
                     segments=segment_debug,
                 )
 
+            anaphor_span, previous_target, anaphora_error = self._resolve_anaphora(
+                spans,
+                segment,
+                actions,
+                resolved_previous_targets,
+            )
+            if anaphora_error is not None:
+                debug.rejection_reason = anaphora_error
+                segment_debug.append(debug)
+                return Interpretation(
+                    text=text,
+                    tokens=tokens,
+                    spans=spans,
+                    frames=chosen_frames,
+                    accepted=False,
+                    reason=anaphora_error,
+                    segments=segment_debug,
+                )
+
             visible_spans = self._visible_spans_for_segment(spans, segment, shared)
             required_target: dict[str, Any] = {}
             if (
@@ -1288,6 +1516,8 @@ class GazetteerMatcher:
                         visible_spans,
                         segment,
                         context,
+                        anaphor_span,
+                        previous_target,
                     )
                 )
             if required_target:
@@ -1299,6 +1529,15 @@ class GazetteerMatcher:
             candidates = self._dedupe_candidates(candidates)
             debug.frame_candidates = candidates
             chosen, segment_ambiguous, reason = self._choose_candidate(candidates)
+            has_anaphoric_candidate = any(
+                any(
+                    option.source == "anaphora"
+                    for option in candidate.slot_options.values()
+                )
+                for candidate in candidates
+            )
+            if anaphor_span is not None and not has_anaphoric_candidate:
+                reason = "previous target is not supported by this action"
             debug.chosen = chosen
             debug.rejection_reason = reason
             segment_debug.append(debug)

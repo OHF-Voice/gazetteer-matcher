@@ -65,6 +65,13 @@ class SpanTagger:
         for phrase in vocab.get("skip_phrases") or []:
             self._add(phrase, "skip", None)
 
+        anaphora = vocab.get("anaphora") or {}
+        for number, phrases in (anaphora.get("pronouns") or {}).items():
+            for phrase in phrases or []:
+                self._add(phrase, "anaphor", number)
+        for phrase in anaphora.get("modifiers") or []:
+            self._add(phrase, "anaphora_modifier", phrase)
+
         for phrase, kind in (vocab.get("conjunctions") or {}).items():
             self._add(phrase, "conjunction", kind)
 
@@ -377,7 +384,8 @@ class SpanTagger:
         strong_tags = {
             "action", "name", "area", "floor", "domain", "device_class",
             "state", "color", "media_class", "number", "unit", "slot_marker",
-            "cue", "conjunction", "relation", "skip",
+            "cue", "conjunction", "relation", "skip", "anaphor",
+            "anaphora_modifier",
         }
         covered: set[int] = set()
         blocked: set[int] = set()

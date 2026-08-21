@@ -145,6 +145,13 @@ def interpretation_to_dict(result: Interpretation, *, include_candidates: bool =
             }
             for frame in result.frames
         ],
+        "targets": [
+            {
+                "slots": target.slots,
+                "scope": target.scope,
+            }
+            for target in result.targets
+        ],
     }
     if include_candidates:
         payload["segments"] = [

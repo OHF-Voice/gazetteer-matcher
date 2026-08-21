@@ -1,0 +1,461 @@
+language: en
+
+numbers:
+  max_cardinal: 10000
+  max_ordinal: 100
+  joiners: [and]
+
+fuzzy:
+  algorithm: damerau
+  action_cutoff: 0.82
+  action_ambiguity_margin: 0.06
+  name_cutoff: 0.76
+  area_cutoff: 0.78
+  floor_cutoff: 0.78
+  max_extra_tokens: 1
+  limit_per_window: 3
+
+acceptance:
+  max_unexplained_important_tokens: 1
+  max_unexplained_unimportant_tokens: 2
+
+skip_phrases:
+  - the
+  - a
+  - an
+  - please
+  - could you
+  - would you
+  - can you
+  - will you
+  - for me
+  - my
+  - our
+  - to
+  - in
+  - at
+  - of
+  - by
+  - from
+  - for
+  - with
+  - that
+  - currently
+
+conjunctions:
+  and: coordinate
+  and then: sequence
+  then: sequence
+
+# Relations remain grammatical skip words, but retaining their semantic role
+# lets otherwise identical numeric spans be assigned correctly.
+relations:
+  to: [to]
+  by: [by]
+  from: [from]
+  for: [for]
+  "on": ["on"]
+
+cues:
+  scope_all:
+    - all
+    - everywhere
+    - whole house
+    - entire house
+    - in the house
+  context_here:
+    - here
+    - in here
+    - this room
+  color_temperature:
+    - color temperature
+    - colour temperature
+
+slot_markers:
+  brightness: [brightness, bright, dim]
+  position: [position]
+  temperature: [temperature, temp, color temperature]
+  volume_level: [volume]
+  percentage: [speed, fan speed]
+  floor_relation: ["on"]
+  timer: [timer, timers]
+
+units:
+  percent: [percent, percentage, "%"]
+  temperature: [degree, degrees, kelvin, celsius, fahrenheit]
+  hours: [hour, hours, hr, hrs]
+  minutes: [minute, minutes, min, mins]
+  seconds: [second, seconds, sec, secs]
+
+# Phrases here are semantic vocabulary, not Home Assistant's domain names.
+domains:
+  light: [light, lights, lamp, lamps, lighting]
+  fan: [fan, fans]
+  cover: [cover, covers, blind, blinds, shade, shades, curtain, curtains]
+  switch: [switch, switches]
+  lock: [lock, locks]
+  valve: [valve, valves]
+  climate: [thermostat, thermostats, climate]
+  media_player: [media player, media players, speaker, speakers, tv, television, stereo]
+  vacuum: [vacuum, vacuums, robot vacuum, robot vacuums]
+  lawn_mower: [mower, mowers, lawn mower, lawn mowers]
+  sensor: [sensor, sensors]
+  binary_sensor: [binary sensor, binary sensors]
+  scene: [scene, scenes]
+  script: [script, scripts]
+  input_boolean: [input boolean, input booleans]
+  person: [person, persons, people, anyone, anybody, everyone, everybody, who]
+
+# Device-class entries may imply one or more possible domains. The intent/action
+# constraints decide which interpretation survives.
+device_classes:
+  window:
+    phrases: [window, windows]
+    domains: [cover, binary_sensor]
+  door:
+    phrases: [door, doors]
+    domains: [cover, binary_sensor]
+  garage_door:
+    phrases: [garage door, garage doors]
+    domains: [cover]
+  blind:
+    phrases: [blind, blinds]
+    domains: [cover]
+  shade:
+    phrases: [shade, shades]
+    domains: [cover]
+  curtain:
+    phrases: [curtain, curtains]
+    domains: [cover]
+
+states:
+  "on": ["on", active, running]
+  "off": ["off", inactive, stopped]
+  open: [open, opened]
+  closed: [closed, shut]
+  locked: [locked]
+  unlocked: [unlocked]
+  home: [home]
+  not_home: [away, not home]
+  occupied: [occupied, detected, triggered]
+
+state_normalization:
+  binary_sensor:
+    open: "on"
+    closed: "off"
+    occupied: "on"
+
+colors:
+  red: [red]
+  orange: [orange]
+  yellow: [yellow]
+  green: [green]
+  blue: [blue]
+  purple: [purple, violet]
+  pink: [pink]
+  white: [white]
+  warm_white: [warm white]
+  cool_white: [cool white]
+
+media_classes:
+  music: [music]
+  track: [song, songs, track, tracks]
+  podcast: [podcast, podcasts]
+  movie: [movie, movies, film, films]
+  tv_show: [show, shows, tv show, tv shows]
+  artist: [artist, artists]
+  album: [album, albums]
+  playlist: [playlist, playlists]
+
+percent_values:
+  100: [max, maximum, highest]
+  1: [min, minimum, lowest]
+
+temperature_values:
+  1900: [candle light, candlelight]
+  2700: [warm white]
+  4000: [cool white, cold white]
+  6500: [daylight, day light]
+
+# Virtual actions lower to one or more Home Assistant intents. A generic action
+# such as "set" intentionally fans out; intents.yaml constraints select the
+# viable slot combination.
+actions:
+  turn_on:
+    phrases: [turn on, switch on, flick on, flip on, power on]
+    separable:
+      verbs: [turn, switch, flick, flip]
+      particles: ["on"]
+      max_gap_tokens: 8
+    intents: [HassTurnOn]
+    opposition_group: power
+    polarity: positive
+
+  turn_off:
+    phrases: [turn off, switch off, flick off, flip off, power off, deactivate]
+    separable:
+      verbs: [turn, switch, flick, flip]
+      particles: ["off"]
+      max_gap_tokens: 8
+    intents: [HassTurnOff]
+    opposition_group: power
+    polarity: negative
+
+  open:
+    phrases: [open, raise, lift, open up]
+    intents: [HassTurnOn, HassSetPosition]
+    allowed_domains: [cover, valve]
+    opposition_group: aperture
+    polarity: positive
+
+  close:
+    phrases: [close, shut, lower, close up]
+    intents: [HassTurnOff, HassSetPosition]
+    allowed_domains: [cover, valve]
+    opposition_group: aperture
+    polarity: negative
+
+  lock:
+    phrases: [lock]
+    intents: [HassTurnOn]
+    allowed_domains: [lock]
+    opposition_group: lock
+    polarity: positive
+
+  unlock:
+    phrases: [unlock]
+    intents: [HassTurnOff]
+    allowed_domains: [lock]
+    opposition_group: lock
+    polarity: negative
+
+  activate:
+    phrases: [activate]
+    intents: [HassTurnOn]
+    allowed_domains: [light, fan, scene, script]
+
+  illuminate:
+    phrases: [light up, illuminate]
+    intents: [HassTurnOn]
+    allowed_domains: [light]
+
+  run_script:
+    phrases: [run, start script, run script]
+    intents: [HassTurnOn]
+    allowed_domains: [script]
+
+  get_state:
+    phrases: [is, are, what is, what's, check, tell me, where is, where can i find]
+    intents: [HassGetState]
+
+  nevermind:
+    phrases: [nevermind, never mind, cancel that, forget it]
+    intents: [HassNevermind]
+
+  respond:
+    phrases: [hello, hi]
+    intents: [HassRespond]
+
+  broadcast:
+    phrases: [broadcast, announce, broadcast that, announce that]
+    intents: [HassBroadcast]
+    capture_rest_slot: message
+
+  set:
+    phrases: [set, make, adjust, change]
+    intents:
+      - HassSetPosition
+      - HassLightSet
+      - HassClimateSetTemperature
+      - HassSetVolume
+      - HassFanSetSpeed
+      - HassStartTimer
+
+  get_date:
+    phrases: [what is the date, what's the date, what is today's date, what's today's date, what day is it, tell me the date]
+    intents: [HassGetCurrentDate]
+
+  get_time:
+    phrases: [what time is it, what is the time, what's the time, tell me the time]
+    intents: [HassGetCurrentTime]
+
+  get_temperature:
+    phrases: [what is the temperature, what's the temperature, what is the temp, what's the temp, how warm is, how cold is]
+    intents: [HassClimateGetTemperature, HassGetState]
+    temperature_query: true
+
+  get_weather:
+    phrases: [what is the weather, what's the weather, weather, weather report]
+    intents: [HassGetWeather]
+
+  vacuum_start:
+    phrases: [start vacuum, start the vacuum, vacuum]
+    intents: [HassVacuumStart, HassVacuumCleanArea]
+
+  vacuum_return:
+    phrases: [return vacuum, return the vacuum, return to base, go to base, dock vacuum]
+    intents: [HassVacuumReturnToBase]
+
+  vacuum_clean_area:
+    phrases: [clean, vacuum, clean area]
+    intents: [HassVacuumCleanArea]
+
+  media_pause:
+    phrases: [pause, pause media, pause music, stop playing]
+    intents: [HassMediaPause]
+
+  media_unpause:
+    phrases: [resume, unpause, resume media, resume music]
+    intents: [HassMediaUnpause]
+
+  media_next:
+    phrases: [next, next track, skip, skip track]
+    intents: [HassMediaNext]
+
+  media_previous:
+    phrases:
+      - previous
+      - previous track
+      - previous song
+      - back
+      - go back
+      - go back to the previous
+      - go back to the last
+      - replay
+      - replay the last
+      - play the last
+      - play the last song
+      - play the last track
+      - play the last song again
+      - play the last track again
+      - play last
+      - play the previous
+      - play the previous song
+      - play the previous track
+      - play the previous song again
+      - play the previous track again
+      - play previous
+    intents: [HassMediaPrevious]
+
+  set_volume:
+    phrases: [set volume, volume]
+    intents: [HassSetVolume]
+
+  mute:
+    phrases: [mute]
+    intents: [HassMediaPlayerMute]
+    opposition_group: mute
+    polarity: positive
+
+  unmute:
+    phrases: [unmute]
+    intents: [HassMediaPlayerUnmute]
+    opposition_group: mute
+    polarity: negative
+
+  volume_up:
+    phrases: [increase volume, raise volume, volume up, turn volume up, turn up, increase, raise]
+    separable:
+      verbs: [turn]
+      particles: [up]
+      max_gap_tokens: 8
+    intents: [HassSetVolumeRelative, HassSetVolume, HassSetPosition]
+    directional_volume: true
+    fixed_slots: {volume_step: up}
+    numeric_sign: 1
+    opposition_group: volume
+    polarity: positive
+
+  volume_down:
+    phrases: [decrease volume, lower volume, volume down, turn volume down, turn down, decrease, lower]
+    separable:
+      verbs: [turn]
+      particles: [down]
+      max_gap_tokens: 8
+    intents: [HassSetVolumeRelative, HassSetVolume, HassSetPosition]
+    directional_volume: true
+    fixed_slots: {volume_step: down}
+    numeric_sign: -1
+    opposition_group: volume
+    polarity: negative
+
+  play:
+    phrases: [play, play music, listen to]
+    intents: [HassMediaSearchAndPlay]
+    capture_rest_slot: search_query
+
+  timer_start:
+    phrases: [start, set, create, start timer, start a timer, set timer, set a timer, create timer, timer for]
+    allow_interstitial_skips: true
+    require_markers: [timer]
+    intents: [HassStartTimer]
+
+  timer_cancel_all:
+    phrases: [cancel all timers, stop all timers, clear all timers]
+    allow_interstitial_skips: true
+    max_interstitial_skip_tokens: 2
+    require_markers: [timer]
+    intents: [HassCancelAllTimers]
+
+  timer_cancel:
+    phrases: [cancel, stop, cancel timer, cancel my timer, stop timer]
+    allow_interstitial_skips: true
+    require_markers: [timer]
+    intents: [HassCancelTimer]
+
+  timer_increase:
+    phrases: [add time, add, increase, extend, increase timer, extend timer]
+    allow_interstitial_skips: true
+    require_markers: [timer]
+    intents: [HassIncreaseTimer]
+
+  timer_decrease:
+    phrases: [remove time, remove, decrease, shorten, decrease timer, shorten timer]
+    allow_interstitial_skips: true
+    require_markers: [timer]
+    intents: [HassDecreaseTimer]
+
+  timer_pause:
+    phrases: [pause, pause timer, pause my timer]
+    allow_interstitial_skips: true
+    require_markers: [timer]
+    intents: [HassPauseTimer]
+
+  timer_unpause:
+    phrases: [resume, unpause, resume timer, resume my timer, unpause timer]
+    allow_interstitial_skips: true
+    require_markers: [timer]
+    intents: [HassUnpauseTimer]
+
+  timer_status:
+    phrases: [status, timer status, time left, how much time is left, how long is left]
+    allow_interstitial_skips: true
+    require_markers: [timer]
+    intents: [HassTimerStatus]
+
+  fan_speed:
+    phrases: [set fan speed, fan speed, set fans, set fan]
+    intents: [HassFanSetSpeed]
+
+  mower_start:
+    phrases: [start mowing, mow, start mower]
+    intents: [HassLawnMowerStartMowing]
+
+  mower_dock:
+    phrases: [stop mowing, dock mower, return mower, mower to base]
+    intents: [HassLawnMowerDock]
+
+# Extra constraints/cues for combinations that have the same formal slot set.
+combination_cues:
+  HassTurnOff.domain_all:
+    require_cues: [scope_all]
+  HassTurnOff.domain_only:
+    forbid_cues: [scope_all]
+  HassClimateSetTemperature.temperature_only:
+    forbid_cues: [color_temperature]
+  HassClimateSetTemperature.name_temperature:
+    forbid_cues: [color_temperature]
+  HassClimateSetTemperature.area_temperature:
+    forbid_cues: [color_temperature]
+  HassClimateSetTemperature.floor_temperature:
+    forbid_cues: [color_temperature]

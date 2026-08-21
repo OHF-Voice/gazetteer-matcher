@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gazetteer-matcher"
+version = "0.1.0"
+description = "Constraint-driven gazetteer matcher for Home Assistant voice intents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "MVP generated for experimentation"}]
+dependencies = [
+  "PyYAML>=6.0",
+  "unicode-rbnf>=2.4.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+gazetteer-match = "gazetteer_matcher.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+gazetteer_matcher = ["data/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

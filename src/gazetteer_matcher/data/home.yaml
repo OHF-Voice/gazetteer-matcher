@@ -1,0 +1,114 @@
+# Example Home Assistant gazetteer. Replace this with data exported from a
+# real HA instance. All names and aliases are deliberately external to code.
+areas:
+  kitchen:
+    name: Kitchen
+    aliases: [kitchen]
+    floor: ground
+  living_room:
+    name: Living Room
+    aliases: [living room, lounge]
+    floor: ground
+  hallway:
+    name: Hallway
+    aliases: [hallway, hall]
+    floor: ground
+  bedroom:
+    name: Bedroom
+    aliases: [bedroom, main bedroom]
+    floor: upstairs
+  bathroom:
+    name: Bathroom
+    aliases: [bathroom, main bathroom, main bath]
+    floor: upstairs
+
+floors:
+  ground:
+    name: Ground Floor
+    aliases: [ground floor, downstairs, first floor, main floor]
+  upstairs:
+    name: Upstairs
+    aliases: [upstairs, second floor, upper floor]
+
+entities:
+  light.kitchen_ceiling:
+    name: Kitchen Ceiling Lights
+    aliases: [kitchen ceiling lights, ceiling lights]
+    domain: light
+    area: kitchen
+    floor: ground
+  light.living_room_ceiling:
+    name: Living Room Ceiling Lights
+    aliases: [living room ceiling lights, lounge lights]
+    domain: light
+    area: living_room
+    floor: ground
+  light.hallway:
+    name: Hallway Light
+    aliases: [hallway light, hall light]
+    domain: light
+    area: hallway
+    floor: ground
+  light.bedroom_lamp:
+    name: Bedroom Lamp
+    aliases: [bedroom lamp, bedside lamp]
+    domain: light
+    area: bedroom
+    floor: upstairs
+  cover.bedroom_blinds:
+    name: Bedroom Blinds
+    aliases: [bedroom blinds, blinds]
+    domain: cover
+    device_class: blind
+    area: bedroom
+    floor: upstairs
+  cover.kitchen_window:
+    name: Kitchen Window
+    aliases: [kitchen window]
+    domain: cover
+    device_class: window
+    area: kitchen
+    floor: ground
+  lock.front_door:
+    name: Front Door
+    aliases: [front door, front door lock]
+    domain: lock
+    area: hallway
+    floor: ground
+  climate.ecobee:
+    name: EcoBee
+    aliases: [ecobee, thermostat]
+    domain: climate
+    area: living_room
+    floor: ground
+  media_player.living_room:
+    name: Living Room Speakers
+    aliases: [living room speakers, sonos, stereo]
+    domain: media_player
+    area: living_room
+    floor: ground
+  vacuum.rover:
+    name: Rover
+    aliases: [rover, robot vacuum]
+    domain: vacuum
+    area: living_room
+    floor: ground
+  fan.bedroom:
+    name: Bedroom Fan
+    aliases: [bedroom fan, ceiling fan]
+    domain: fan
+    area: bedroom
+    floor: upstairs
+  lawn_mower.clippy:
+    name: Clippy
+    aliases: [clippy, mower]
+    domain: lawn_mower
+    area: null
+    floor: null
+  sensor.outside_temperature:
+    name: Outside Temperature
+    aliases: [outside temperature, outdoor temperature]
+    domain: sensor
+    device_class: temperature
+    area: null
+    floor: null

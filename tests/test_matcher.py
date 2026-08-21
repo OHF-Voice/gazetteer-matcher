@@ -1,0 +1,468 @@
+import pytest
+import yaml
+
+from gazetteer_matcher import GazetteerMatcher
+
+
+@pytest.fixture(scope="module")
+def matcher():
+    return GazetteerMatcher()
+
+
+def frame_tuples(result):
+    return [(frame.intent, frame.slots) for frame in result.frames]
+
+
+def test_support_catalog(matcher):
+    summary = matcher.support_summary()
+    assert summary["total_combinations"] == 217
+    assert summary["wildcard_combinations_excluded"] == 26
+    assert summary["non_wildcard_combinations"] == 191
+    assert summary["non_wildcard_combinations_with_action_mapping"] == 191
+    assert summary["unmapped_intents"] == []
+
+
+def test_exact_turn_on(matcher):
+    result = matcher.interpret("turn on the kitchen lights")
+    assert result.accepted
+    assert frame_tuples(result) == [
+        ("HassTurnOn", {"area": "kitchen", "domain": "light"})
+    ]
+
+
+def test_fuzzy_area(matcher):
+    result = matcher.interpret("flick on the kichen lights")
+    assert result.accepted
+    assert result.frames[0].slots == {"area": "kitchen", "domain": "light"}
+    assert any(span.tag == "area" and span.source == "fuzzy_area" for span in result.spans)
+
+
+def test_fuzzy_action(matcher):
+    result = matcher.interpret("flik on the kitchen lights")
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOn"
+    assert any(span.tag == "action" and span.source == "fuzzy_action" for span in result.spans)
+
+
+def test_separable_action(matcher):
+    result = matcher.interpret("flick the kitchen lights on")
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOn"
+    assert result.frames[0].slots == {"area": "kitchen", "domain": "light"}
+
+
+def test_entity_name_wins(matcher):
+    result = matcher.interpret("turn on the bedroom lamp")
+    assert result.accepted
+    assert result.frames[0].slots == {"name": "light.bedroom_lamp"}
+
+
+def test_open_cover(matcher):
+    result = matcher.interpret("open the bedroom blinds")
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOn"
+    assert result.frames[0].slots == {"name": "cover.bedroom_blinds"}
+
+
+def test_open_light_rejected(matcher):
+    result = matcher.interpret("open the kitchen lights")
+    assert not result.accepted
+
+
+def test_floor(matcher):
+    result = matcher.interpret("turn on the lights on the second floor")
+    assert result.accepted
+    assert result.frames[0].slots == {"floor": "upstairs", "domain": "light"}
+
+
+def test_conjunction_targets(matcher):
+    result = matcher.interpret("turn on the kitchen and hallway lights")
+    assert result.accepted
+    assert frame_tuples(result) == [
+        ("HassTurnOn", {"area": "kitchen", "domain": "light"}),
+        ("HassTurnOn", {"area": "hallway", "domain": "light"}),
+    ]
+
+
+def test_conjunction_intents(matcher):
+    result = matcher.interpret(
+        "turn off the kitchen lights and open the bedroom blinds"
+    )
+    assert result.accepted
+    assert frame_tuples(result) == [
+        ("HassTurnOff", {"area": "kitchen", "domain": "light"}),
+        ("HassTurnOn", {"name": "cover.bedroom_blinds"}),
+    ]
+
+
+def test_conjunction_properties(matcher):
+    result = matcher.interpret(
+        "set the living room lights red and fifty percent"
+    )
+    assert result.accepted
+    assert frame_tuples(result) == [
+        (
+            "HassLightSet",
+            {"area": "living_room", "color": "red", "domain": "light"},
+        ),
+        (
+            "HassLightSet",
+            {"area": "living_room", "brightness": 50, "domain": "light"},
+        ),
+    ]
+
+
+def test_number_words(matcher):
+    result = matcher.interpret("set the bedroom brightness to fifty percent")
+    assert result.accepted
+    assert result.frames[0].intent == "HassLightSet"
+    assert result.frames[0].slots["brightness"] == 50
+
+
+def test_number_joiner_does_not_become_conjunction(matcher):
+    result = matcher.interpret(
+        "start a timer for one hundred and twenty seconds"
+    )
+    assert result.accepted
+    assert len(result.frames) == 1
+    assert result.frames[0].intent == "HassStartTimer"
+    assert result.frames[0].slots == {"seconds": 120}
+
+
+@pytest.mark.parametrize(
+    ("text", "slots"),
+    [
+        ("start a timer for half an hour", {"minutes": 30}),
+        (
+            "start a timer for one and a half hours",
+            {"hours": 1, "minutes": 30},
+        ),
+    ],
+)
+def test_fractional_timer_durations(matcher, text, slots):
+    result = matcher.interpret(text)
+    assert result.accepted
+    assert result.frames[0].intent == "HassStartTimer"
+    assert result.frames[0].slots == slots
+
+
+def test_timer_relations_assign_base_and_adjustment_roles(matcher):
+    result = matcher.interpret("increase timer for 5 minutes by 1 hour")
+    assert result.accepted
+    assert result.frames[0].intent == "HassIncreaseTimer"
+    assert result.frames[0].slots == {"start_minutes": 5, "hours": 1}
+
+
+def test_spoken_decimal_temperature(matcher):
+    result = matcher.interpret(
+        "set bedroom temperature to twenty point five degrees"
+    )
+    assert result.accepted
+    assert result.frames[0].intent == "HassClimateSetTemperature"
+    assert result.frames[0].slots["temperature"] == 20.5
+
+
+def test_qualitative_brightness(matcher):
+    result = matcher.interpret("set bedroom brightness to maximum")
+    assert result.accepted
+    assert result.frames[0].intent == "HassLightSet"
+    assert result.frames[0].slots["brightness"] == 100
+
+
+@pytest.mark.parametrize(
+    ("text", "intent"),
+    [
+        ("start the timer for one minute", "HassStartTimer"),
+        ("cancel the timer", "HassCancelTimer"),
+        ("pause the timer", "HassPauseTimer"),
+        ("resume the timer", "HassUnpauseTimer"),
+    ],
+)
+def test_timer_actions_allow_interstitial_skip_words(matcher, text, intent):
+    result = matcher.interpret(text)
+    assert result.accepted
+    assert result.frames[0].intent == intent
+    action_span = result.frames[0].action_span
+    assert action_span.source == "interstitial_skip"
+    assert action_span.meta["consumed_indexes"] == [0, 2]
+
+
+@pytest.mark.parametrize(
+    ("text", "consumed_indexes"),
+    [
+        ("cancel all the timers", [0, 1, 3]),
+        ("cancel all of my timers", [0, 1, 4]),
+    ],
+)
+def test_interstitial_skip_preserves_cancel_all_action(
+    matcher, text, consumed_indexes
+):
+    result = matcher.interpret(text)
+    assert result.accepted
+    assert result.frames[0].intent == "HassCancelAllTimers"
+    assert result.frames[0].action_span.meta["consumed_indexes"] == consumed_indexes
+
+
+def test_constrained_timer_anchor_allows_target_between_action_and_marker(matcher):
+    result = matcher.interpret("cancel the kitchen timer")
+    assert result.accepted
+    assert result.frames[0].intent == "HassCancelTimer"
+    assert result.frames[0].slots == {"area": "kitchen"}
+
+
+def test_interstitial_skip_does_not_cross_semantic_content(matcher):
+    result = matcher.interpret("cancel and start timer")
+    assert not result.accepted
+
+
+def test_climate_temperature(matcher):
+    result = matcher.interpret(
+        "set the bedroom temperature to seventy two degrees"
+    )
+    assert result.accepted
+    assert result.frames[0].intent == "HassClimateSetTemperature"
+    assert result.frames[0].slots == {"area": "bedroom", "temperature": 72}
+
+
+def test_light_color_temperature(matcher):
+    result = matcher.interpret(
+        "set the bedroom color temperature to 2700 kelvin"
+    )
+    assert result.accepted
+    assert result.frames[0].intent == "HassLightSet"
+    assert result.frames[0].slots == {
+        "area": "bedroom",
+        "temperature": 2700,
+        "domain": "light",
+    }
+
+
+def test_named_light_temperature(matcher):
+    result = matcher.interpret(
+        "set the bedroom lamp temperature to warm white"
+    )
+    assert result.accepted
+    assert result.frames[0].intent == "HassLightSet"
+    assert result.frames[0].slots == {
+        "name": "light.bedroom_lamp",
+        "temperature": 2700,
+    }
+
+
+def test_get_entity_state(matcher):
+    result = matcher.interpret("is the bedroom lamp on")
+    assert result.accepted
+    assert result.frames[0].intent == "HassGetState"
+    assert result.frames[0].slots == {
+        "name": "light.bedroom_lamp",
+        "state": "on",
+    }
+
+
+def test_get_temperature(matcher):
+    result = matcher.interpret("what is the temperature in the bedroom")
+    assert result.accepted
+    assert result.frames[0].intent == "HassClimateGetTemperature"
+    assert result.frames[0].slots == {"area": "bedroom"}
+
+
+def test_current_date(matcher):
+    result = matcher.interpret("what is the date")
+    assert result.accepted
+    assert result.frames[0].intent == "HassGetCurrentDate"
+
+
+def test_one_unimportant_unexplained_token_allowed(matcher):
+    result = matcher.interpret("turn on the kitchen lights banana")
+    assert result.accepted
+    assert result.frames[0].unexplained_important_tokens == []
+    assert result.frames[0].unexplained_unimportant_tokens == [5]
+
+
+def test_two_unimportant_unexplained_tokens_allowed(matcher):
+    result = matcher.interpret("turn on the kitchen lights banana potato")
+    assert result.accepted
+    assert result.frames[0].unexplained_important_tokens == []
+    assert result.frames[0].unexplained_unimportant_tokens == [5, 6]
+
+
+def test_three_unimportant_unexplained_tokens_rejected(matcher):
+    result = matcher.interpret("turn on the kitchen lights banana potato tomato")
+    assert not result.accepted
+    candidate = result.segments[0].frame_candidates[0]
+    assert candidate.unexplained_important_tokens == []
+    assert candidate.unexplained_unimportant_tokens == [5, 6, 7]
+
+
+def test_one_important_unexplained_token_allowed(matcher):
+    result = matcher.interpret("turn on seventeen kitchen lights")
+    assert result.accepted
+    assert result.frames[0].unexplained_important_tokens == [2]
+    assert result.frames[0].unexplained_unimportant_tokens == []
+
+
+def test_two_important_unexplained_tokens_rejected(matcher):
+    result = matcher.interpret("turn on seventeen red kitchen lights")
+    assert not result.accepted
+    candidate = result.segments[0].frame_candidates[0]
+    assert candidate.unexplained_important_tokens == [2, 3]
+    assert candidate.unexplained_unimportant_tokens == []
+
+
+def test_important_and_unimportant_limits_are_independent(matcher):
+    result = matcher.interpret(
+        "turn on seventeen kitchen lights banana potato"
+    )
+    assert result.accepted
+    assert result.frames[0].unexplained_important_tokens == [2]
+    assert result.frames[0].unexplained_unimportant_tokens == [5, 6]
+
+
+def test_ambiguous_set_rejected(matcher):
+    result = matcher.interpret("set the bedroom to fifty percent")
+    assert not result.accepted
+    assert result.ambiguous
+
+
+def test_volume_relative(matcher):
+    result = matcher.interpret("increase the bedroom volume by twenty percent")
+    assert result.accepted
+    assert result.frames[0].intent == "HassSetVolumeRelative"
+    assert result.frames[0].slots == {"volume_step": 20, "area": "bedroom"}
+
+
+@pytest.mark.parametrize(
+    ("text", "intent", "slots"),
+    [
+        (
+            "turn the volume down to 90 percent",
+            "HassSetVolume",
+            {"volume_level": 90},
+        ),
+        (
+            "turn the volume down by 20 percent",
+            "HassSetVolumeRelative",
+            {"volume_step": -20},
+        ),
+    ],
+)
+def test_volume_relation_controls_absolute_vs_relative(
+    matcher, text, intent, slots
+):
+    result = matcher.interpret(text)
+    assert result.accepted
+    assert result.frames[0].intent == intent
+    assert result.frames[0].slots == slots
+
+
+def test_entity_first_power_command(matcher):
+    result = matcher.interpret("kitchen lights on")
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOn"
+    assert result.frames[0].slots == {"area": "kitchen", "domain": "light"}
+
+
+@pytest.mark.parametrize("intent_word", ["on", "off"])
+def test_context_area_materializes_for_bare_domain_command(matcher, intent_word):
+    result = matcher.interpret(
+        f"turn {intent_word} the lights", context_area="Kitchen"
+    )
+    assert result.accepted
+    assert result.frames[0].combination == "domain_only"
+    assert result.frames[0].slots == {
+        "domain": "light",
+        "area": "kitchen",
+    }
+
+
+def test_explicit_whole_house_scope_ignores_context_area(matcher):
+    result = matcher.interpret(
+        "turn off all the lights", context_area="Kitchen"
+    )
+    assert result.accepted
+    assert result.frames[0].combination == "domain_all"
+    assert result.frames[0].slots == {"domain": "light"}
+
+
+def test_context_disambiguates_duplicate_entity_names(tmp_path):
+    home_path = tmp_path / "home.yaml"
+    home_path.write_text(
+        yaml.safe_dump(
+            {
+                "areas": {
+                    "kitchen": {"name": "Kitchen", "floor": "ground"},
+                    "bedroom": {"name": "Bedroom", "floor": "upstairs"},
+                },
+                "floors": {
+                    "ground": {"name": "Ground Floor"},
+                    "upstairs": {"name": "Upstairs"},
+                },
+                "entities": {
+                    "light.kitchen_ceiling": {
+                        "name": "Ceiling Light",
+                        "domain": "light",
+                        "area": "kitchen",
+                    },
+                    "light.bedroom_ceiling": {
+                        "name": "Ceiling Light",
+                        "domain": "light",
+                        "area": "bedroom",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    duplicate_matcher = GazetteerMatcher(home_path=home_path)
+
+    without_context = duplicate_matcher.interpret("turn on ceiling light")
+    assert not without_context.accepted
+    assert without_context.ambiguous
+
+    in_kitchen = duplicate_matcher.interpret(
+        "turn on ceiling light", context_area="kitchen"
+    )
+    assert in_kitchen.accepted
+    assert in_kitchen.frames[0].slots == {"name": "light.kitchen_ceiling"}
+
+    upstairs = duplicate_matcher.interpret(
+        "turn on ceiling light", context_floor="Upstairs"
+    )
+    assert upstairs.accepted
+    assert upstairs.frames[0].slots == {"name": "light.bedroom_ceiling"}
+
+
+def test_context_area_derives_and_validates_floor(matcher):
+    result = matcher.interpret("turn on bedroom lamp", context_area="Bedroom")
+    assert result.accepted
+    assert result.frames[0].slots == {"name": "light.bedroom_lamp"}
+
+    remote_unique_name = matcher.interpret(
+        "turn on bedroom lamp", context_area="Kitchen"
+    )
+    assert remote_unique_name.accepted
+    assert remote_unique_name.frames[0].slots == {
+        "name": "light.bedroom_lamp"
+    }
+
+    with pytest.raises(ValueError, match="is not on context floor"):
+        matcher.interpret(
+            "turn on bedroom lamp",
+            context_area="Bedroom",
+            context_floor="Ground Floor",
+        )
+
+
+def test_lock_state_disambiguates_door_domain(matcher):
+    result = matcher.interpret("are any doors unlocked")
+    assert result.accepted
+    assert result.frames[0].intent == "HassGetState"
+    assert result.frames[0].combination == "domain_state"
+    assert result.frames[0].slots == {"domain": "lock", "state": "unlocked"}
+
+
+def test_broadcast_residual(matcher):
+    result = matcher.interpret("broadcast that dinner is ready")
+    assert result.accepted
+    assert result.frames[0].intent == "HassBroadcast"
+    assert result.frames[0].slots == {"message": "dinner is ready"}

@@ -45,3 +45,13 @@ cases:
         combination: name_only
         response_key: default
         slots: {name: lawn_mower.clippy}
+
+  - sentences:
+      - send clippy to base
+      - put clippy on charger
+      - park clippy
+    frames:
+      - intent: HassLawnMowerDock
+        combination: name_only
+        response_key: default
+        slots: {name: lawn_mower.clippy}

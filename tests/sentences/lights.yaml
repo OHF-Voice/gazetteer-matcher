@@ -40,6 +40,13 @@ cases:
         response_key: brightness
         slots: {name: light.bedroom_lamp, brightness: 50}
 
+  - sentence: set bedroom lamp to half
+    frames:
+      - intent: HassLightSet
+        combination: name_brightness
+        response_key: brightness
+        slots: {name: light.bedroom_lamp, brightness: 50}
+
   - sentence: set living room brightness to 50%
     frames:
       - intent: HassLightSet

@@ -8,10 +8,28 @@ _MODULE_DIR = _PROGRAM_DIR / "src" / "gazetteer_matcher"
 _TESTS_DIR = _PROGRAM_DIR / "tests"
 
 _LINT_DIRS = [_MODULE_DIR, _TESTS_DIR]
+_PYTHON_FILES = sorted(
+    path for directory in _LINT_DIRS for path in directory.rglob("*.py")
+)
 
 python_exe = "python3"
-subprocess.check_call([python_exe, "-m", "black"] + _LINT_DIRS + ["--check"])
+
+for python_file in _PYTHON_FILES:
+    subprocess.check_call(
+        [
+            python_exe,
+            "-m",
+            "black",
+            python_file,
+            "--check",
+            "--no-cache",
+            "--quiet",
+        ]
+    )
 subprocess.check_call([python_exe, "-m", "isort"] + _LINT_DIRS + ["--check"])
-subprocess.check_call([python_exe, "-m", "flake8"] + _LINT_DIRS)
-subprocess.check_call([python_exe, "-m", "pylint"] + _LINT_DIRS)
+subprocess.check_call([python_exe, "-m", "flake8", "--jobs", "1"] + _LINT_DIRS)
+subprocess.check_call(
+    [python_exe, "-m", "pylint", "--jobs", "1", "--persistent", "no"]
+    + _LINT_DIRS
+)
 subprocess.check_call([python_exe, "-m", "mypy"] + _LINT_DIRS)

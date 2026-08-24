@@ -25,6 +25,9 @@ cases:
   - sentences:
       - return rover to base
       - rover return to base
+      - send rover home
+      - put rover on the charger
+      - park rover
     frames:
       - intent: HassVacuumReturnToBase
         combination: name_only
@@ -49,11 +52,19 @@ cases:
   - sentences:
       - could you lock the front door
       - front door lock
+      - secure the front door
     frames:
       - intent: HassTurnOn
         combination: name_only
         response_key: lock
         slots: {name: lock.front_door}
+
+  - sentence: extinguish the bedroom lamp
+    frames:
+      - intent: HassTurnOff
+        combination: name_only
+        response_key: default
+        slots: {name: light.bedroom_lamp}
 
   - sentences:
       - unlock the front door
@@ -85,6 +96,13 @@ cases:
         slots: {domain: lock, state: unlocked}
 
   - sentence: set bedroom fan speed to 50%
+    frames:
+      - intent: HassFanSetSpeed
+        combination: name_only
+        response_key: default
+        slots: {name: fan.bedroom, percentage: 50}
+
+  - sentence: set bedroom fan to half
     frames:
       - intent: HassFanSetSpeed
         combination: name_only

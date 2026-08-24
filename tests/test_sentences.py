@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 import yaml
 
-from gazetteer_matcher import GazetteerMatcher
+from gazetteer_matcher import GazetteerMatcher, TargetReference
 
 SENTENCES_DIR = Path(__file__).parent / "sentences"
 
@@ -109,7 +109,7 @@ def test_home_sentence_series(
     matcher: GazetteerMatcher,
     series: dict[str, Any],
 ):
-    previous_targets = ()
+    previous_targets: tuple[TargetReference, ...] = ()
     for turn_number, turn in enumerate(series["turns"], start=1):
         base_label = f"{series['_source']}:{series['name']}:turn {turn_number}"
         results = []

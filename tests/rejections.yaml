@@ -12,6 +12,8 @@ cases:
     category: incomplete_command
   - sentence: bedroom brightness
     category: incomplete_command
+  - sentence: do I have kitchen lights
+    category: incomplete_state_question
 
   # Recognized semantic evidence that does not form one coherent intent.
   - sentence: turn on seventeen red kitchen lights
@@ -27,6 +29,12 @@ cases:
   - sentence: make clippy dance
     category: unsupported_target_action
   - sentence: paint the kitchen lights red
+    category: unsupported_target_action
+  - sentence: secure the bedroom lamp
+    category: unsupported_target_action
+  - sentence: extinguish rover
+    category: unsupported_target_action
+  - sentence: park the bedroom lamp
     category: unsupported_target_action
 
   # Deliberately underspecified property commands should stay ambiguous.

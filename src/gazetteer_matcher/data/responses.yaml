@@ -36,11 +36,14 @@ actions:
   close: close
   lock: lock
   unlock: unlock
+  secure: lock
+  extinguish: turn off
   activate: activate
   illuminate: turn on
   set: set
   run_script: run
   get_state: check
+  get_state_with_state: check
   nevermind: ignore
   get_date: get the date for
   get_time: get the time for
@@ -80,11 +83,14 @@ action_attempts:
   close: close something
   lock: lock something
   unlock: unlock something
+  secure: lock something
+  extinguish: turn off a light
   activate: activate something
   illuminate: turn on a light
   set: change a setting
   run_script: run a script
   get_state: check a device
+  get_state_with_state: check a device
   nevermind: cancel the request
   get_date: get the date
   get_time: get the time

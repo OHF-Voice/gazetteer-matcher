@@ -5,6 +5,45 @@ language: en
 # downstream rendering when intent, combination, and slots are otherwise equal.
 cases:
   - sentences:
+      - did I leave the front door unlocked
+      - have I left the front door unsecured
+    frames:
+      - intent: HassGetState
+        combination: name_state
+        response_key: one_yesno
+        slots: {name: lock.front_door, state: unlocked}
+
+  - sentences:
+      - have I left any kitchen lights on
+      - do I have any kitchen lights lit
+    frames:
+      - intent: HassGetState
+        combination: domain_state_area
+        response_key: any
+        slots: {area: kitchen, domain: light, state: "on"}
+
+  - sentence: which lights are lit
+    frames:
+      - intent: HassGetState
+        combination: domain_state
+        response_key: which
+        slots: {domain: light, state: "on"}
+
+  - sentence: is the kitchen window ajar
+    frames:
+      - intent: HassGetState
+        combination: name_state
+        response_key: one_yesno
+        slots: {name: cover.kitchen_window, state: open}
+
+  - sentence: is the front door secured
+    frames:
+      - intent: HassGetState
+        combination: name_state
+        response_key: one_yesno
+        slots: {name: lock.front_door, state: locked}
+
+  - sentences:
       - are any lights on
       - are any lights currently on
       - check if any lights are on

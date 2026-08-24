@@ -131,7 +131,7 @@ units:
 domains:
   light: [light, lights, lamp, lamps, lighting]
   fan: [fan, fans]
-  cover: [cover, covers, blind, blinds, shade, shades, curtain, curtains]
+  cover: [cover, covers, blind, blinds, shade, shades, curtain, curtains, drape, drapes, shutter, shutters]
   switch: [switch, switches]
   lock: [lock, locks]
   valve: [valve, valves]
@@ -163,16 +163,19 @@ device_classes:
     phrases: [shade, shades]
     domains: [cover]
   curtain:
-    phrases: [curtain, curtains]
+    phrases: [curtain, curtains, drape, drapes]
+    domains: [cover]
+  shutter:
+    phrases: [shutter, shutters]
     domains: [cover]
 
 states:
-  "on": ["on", active, running]
+  "on": ["on", active, running, lit]
   "off": ["off", inactive, stopped]
-  open: [open, opened]
+  open: [open, opened, ajar]
   closed: [closed, shut]
-  locked: [locked]
-  unlocked: [unlocked]
+  locked: [locked, secured]
+  unlocked: [unlocked, unsecured]
   home: [home]
   not_home: [away, not home]
   occupied: [occupied, detected, triggered]
@@ -207,6 +210,7 @@ media_classes:
 
 percent_values:
   100: [max, maximum, highest]
+  50: [half, halfway]
   1: [min, minimum, lowest]
 
 temperature_values:
@@ -267,10 +271,26 @@ actions:
     opposition_group: lock
     polarity: negative
 
+  secure:
+    phrases: [secure]
+    intents: [HassTurnOn]
+    allowed_domains: [lock]
+    suppress_inside_name: true
+    opposition_group: lock
+    polarity: positive
+
+  extinguish:
+    phrases: [extinguish]
+    intents: [HassTurnOff]
+    allowed_domains: [light]
+    suppress_inside_name: true
+    opposition_group: power
+    polarity: negative
+
   activate:
     phrases: [activate]
     intents: [HassTurnOn]
-    allowed_domains: [light, fan, script]
+    allowed_domains: [light, fan]
 
   illuminate:
     phrases: [light up, illuminate]
@@ -280,6 +300,11 @@ actions:
   get_state:
     phrases: [is, are, what is, what's, check, tell me, where is, where can i find]
     intents: [HassGetState]
+
+  get_state_with_state:
+    phrases: [did i leave, have i left, do i have]
+    intents: [HassGetState]
+    require_slots: [state]
 
   nevermind:
     phrases: [nevermind, never mind, cancel that, forget it]
@@ -304,7 +329,7 @@ actions:
     intents: [HassGetCurrentTime]
 
   get_temperature:
-    phrases: [what is the temperature, what's the temperature, what is the temp, what's the temp, how warm is, how cold is, temp, temperature]
+    phrases: [what is the temperature, what's the temperature, what is the temp, what's the temp, how warm is, how hot is, how cold is, temp, temperature]
     intents: [HassClimateGetTemperature]
     temperature_query: true
 
@@ -317,8 +342,10 @@ actions:
     intents: [HassVacuumStart, HassVacuumCleanArea]
 
   vacuum_return:
-    phrases: [return vacuum, return the vacuum, return to base, go to base, dock vacuum]
+    phrases: [return vacuum, return the vacuum, return to base, go to base, dock vacuum, send home, send to base, put on charger, put on the charger, park]
     allow_interstitial_targets: true
+    allowed_domains: [vacuum]
+    suppress_inside_name: true
     intents: [HassVacuumReturnToBase]
 
   vacuum_clean_area:
@@ -408,6 +435,7 @@ actions:
     phrases: [play, play music, listen to]
     intents: [HassMediaSearchAndPlay]
     capture_rest_slot: search_query
+    suppress_inside_name: true
 
   timer_start:
     phrases: [start, set, create, start timer, start a timer, set timer, set a timer, create timer, timer for]
@@ -453,7 +481,7 @@ actions:
     intents: [HassUnpauseTimer]
 
   timer_status:
-    phrases: [status, timer status, time left, how much time is left, how long is left, where is, what is, where's, what's]
+    phrases: [status, timer status, time left, how much time is left, how long is left, where is, what is, where's, what's, what about, when, how long]
     allow_interstitial_skips: true
     require_markers: [timer]
     intents: [HassTimerStatus]
@@ -467,7 +495,10 @@ actions:
     intents: [HassLawnMowerStartMowing]
 
   mower_dock:
-    phrases: [stop mowing, dock mower, return mower, mower to base]
+    phrases: [stop mowing, dock mower, return mower, mower to base, return to base, return to dock, send home, send to base, put on charger, put on the charger, park]
+    allow_interstitial_targets: true
+    allowed_domains: [lawn_mower]
+    suppress_inside_name: true
     intents: [HassLawnMowerDock]
 
 # Extra constraints/cues for combinations that have the same formal slot set.

@@ -1,8 +1,21 @@
 language: en
 
-# Adapted from Home Assistant's built-in sentence starter pack:
-# https://www.home-assistant.io/voice_control/builtin_sentences
 cases:
+  - sentence: open the drapes
+    context_area: Living Room
+    frames:
+      - intent: HassTurnOn
+        combination: device_class_cover
+        response_key: cover_device_class
+        slots: {area: living_room, domain: cover, device_class: curtain}
+
+  - sentence: are any shutters ajar
+    frames:
+      - intent: HassGetState
+        combination: device_class_state
+        response_key: any
+        slots: {domain: cover, device_class: shutter, state: open}
+
   - sentences:
       - open the bedroom blinds
       - bedroom blinds open
@@ -36,6 +49,7 @@ cases:
   - sentences:
       - set bedroom blinds to 50%
       - bedroom blinds fifty percent
+      - set bedroom blinds halfway
     frames:
       - intent: HassSetPosition
         combination: name_only

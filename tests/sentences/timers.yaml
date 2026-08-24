@@ -103,7 +103,11 @@ cases:
         response_key: default
         slots: {}
 
-  - sentence: timer status
+  - sentences:
+      - timer status
+      - what about my timer?
+      - when will the timer go off?
+      - how long till the timer is done?
     frames:
       - intent: HassTimerStatus
         combination: default

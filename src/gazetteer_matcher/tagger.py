@@ -375,6 +375,12 @@ class SpanTagger:
                     else:
                         if skipped_name is None:
                             continue
+                        allowed_domains = set(spec.get("allowed_domains") or [])
+                        if (
+                            allowed_domains
+                            and skipped_name.meta.get("domain") not in allowed_domains
+                        ):
+                            continue
                         result.append(
                             Span(
                                 start=start,
@@ -871,6 +877,27 @@ class SpanTagger:
 
     def tag(self, tokens: list[Token]) -> list[Span]:
         exact = self.exact_spans(tokens)
+        exact_names = [
+            span
+            for span in exact
+            if span.tag == "name" and not span.source.startswith("fuzzy")
+        ]
+        exact = [
+            span
+            for span in exact
+            if not (
+                span.tag == "action"
+                and (
+                    self.config.vocabulary.get("actions", {})
+                    .get(str(span.value), {})
+                    .get("suppress_inside_name")
+                )
+                and any(
+                    name.start <= span.start and span.end <= name.end
+                    for name in exact_names
+                )
+            )
+        ]
         number_spans = self.number_trie.find(tokens)
         base = exact + number_spans
         fuzzy_actions = self.fuzzy_action_spans(tokens, base)
@@ -892,7 +919,12 @@ class SpanTagger:
             power_states = [
                 span
                 for span in combined
-                if span.tag == "state" and span.value in {"on", "off"}
+                if span.tag == "state"
+                and span.value in {"on", "off"}
+                and not any(
+                    name.start <= span.start and span.end <= name.end
+                    for name in exact_names
+                )
             ]
             if target_spans and power_states:
                 state_span = power_states[0]

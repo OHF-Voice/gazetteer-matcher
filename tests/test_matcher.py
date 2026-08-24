@@ -127,6 +127,42 @@ def test_entity_name_can_elide_an_interior_word():
     )
 
 
+def test_actions_inside_exact_entity_names_are_not_commands():
+    name_matcher = GazetteerMatcher(
+        home={
+            "areas": {},
+            "floors": {},
+            "entities": {
+                "vacuum.park_rover": {
+                    "name": "Park Rover",
+                    "domain": "vacuum",
+                },
+                "light.lit_lamp": {
+                    "name": "Lit Lamp",
+                    "domain": "light",
+                },
+                "light.play_corner": {
+                    "name": "Play Corner Light",
+                    "domain": "light",
+                },
+            },
+        }
+    )
+
+    assert not name_matcher.interpret("park rover").accepted
+    assert not name_matcher.interpret("lit lamp").accepted
+
+    command = name_matcher.interpret("park park rover")
+    assert command.accepted
+    assert command.frames[0].intent == "HassVacuumReturnToBase"
+    assert command.frames[0].slots == {"name": "vacuum.park_rover"}
+
+    power_command = name_matcher.interpret("play corner light off")
+    assert power_command.accepted
+    assert power_command.frames[0].intent == "HassTurnOff"
+    assert power_command.frames[0].slots == {"name": "light.play_corner"}
+
+
 def test_elided_entity_name_remains_ambiguous_when_not_unique():
     elision_matcher = GazetteerMatcher(
         home={
@@ -444,6 +480,22 @@ def test_get_temperature(matcher):
     assert result.accepted
     assert result.frames[0].intent == "HassClimateGetTemperature"
     assert result.frames[0].slots == {"area": "bedroom"}
+
+
+@pytest.mark.parametrize(
+    ("text", "combination", "slots"),
+    [
+        ("how hot is the living room", "area_only", {"area": "living_room"}),
+        ("how hot is ecobee", "name_only", {"name": "climate.ecobee"}),
+    ],
+)
+def test_get_temperature_how_hot(matcher, text, combination, slots):
+    result = matcher.interpret(text)
+
+    assert result.accepted
+    assert result.frames[0].intent == "HassClimateGetTemperature"
+    assert result.frames[0].combination == combination
+    assert result.frames[0].slots == slots
 
 
 def test_current_date(matcher):

@@ -850,6 +850,9 @@ class GazetteerMatcher:
         marker_values = {
             span.value for span in local_spans if span.tag == "slot_marker"
         }
+        for required_slot in action_spec.get("require_slots") or []:
+            if required_slot not in selected:
+                violations.append(f"missing required slot {required_slot!r}")
         for required_marker in action_spec.get("require_markers") or []:
             if required_marker not in marker_values:
                 violations.append(f"missing required marker {required_marker!r}")
@@ -1001,6 +1004,20 @@ class GazetteerMatcher:
             violations.append("lock state requires lock domain")
 
         action_domains = set(action_spec.get("allowed_domains") or [])
+        local_target_domains = {
+            str(span.meta.get("domain"))
+            for span in local_spans
+            if span.tag == "name" and span.meta.get("domain")
+        }
+        local_target_domains.update(
+            str(span.value) for span in local_spans if span.tag == "domain"
+        )
+        if (
+            action_domains
+            and local_target_domains
+            and local_target_domains.isdisjoint(action_domains)
+        ):
+            violations.append("explicit target incompatible with virtual action")
         if action_domains and domain is not None and domain not in action_domains:
             violations.append(f"domain {domain!r} incompatible with virtual action")
         if action_domains and domain is None and name_option:

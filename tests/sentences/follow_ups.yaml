@@ -10,7 +10,9 @@ series:
           - intent: HassTurnOn
             combination: area_domain
             slots: {area: kitchen, domain: light}
-      - sentence: turn them off
+      - sentences:
+          - turn them off
+          - switch them off
         frames:
           - intent: HassTurnOff
             combination: area_domain

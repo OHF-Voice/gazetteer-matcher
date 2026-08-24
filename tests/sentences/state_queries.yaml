@@ -4,7 +4,11 @@ language: en
 # intent-sentences tests. The response key preserves the question form for
 # downstream rendering when intent, combination, and slots are otherwise equal.
 cases:
-  - sentence: are any lights on
+  - sentences:
+      - are any lights on
+      - are any lights currently on
+      - check if any lights are on
+      - tell me if any lights are on
     frames:
       - intent: HassGetState
         combination: domain_state
@@ -25,28 +29,37 @@ cases:
         response_key: all
         slots: {domain: light, state: "off"}
 
-  - sentence: which lights are on
+  - sentences:
+      - which lights are on
+      - tell me which lights are on
+      - check which lights are on
     frames:
       - intent: HassGetState
         combination: domain_state
         response_key: which
         slots: {domain: light, state: "on"}
 
-  - sentence: how many lights are on
+  - sentences:
+      - how many lights are on
+      - tell me how many lights are on
     frames:
       - intent: HassGetState
         combination: domain_state
         response_key: how_many
         slots: {domain: light, state: "on"}
 
-  - sentence: are any kitchen lights on
+  - sentences:
+      - are any kitchen lights on
+      - check whether any kitchen lights are on
     frames:
       - intent: HassGetState
         combination: domain_state_area
         response_key: any
         slots: {area: kitchen, domain: light, state: "on"}
 
-  - sentence: which lights are on in the kitchen
+  - sentences:
+      - which lights are on in the kitchen
+      - which kitchen lights are currently on
     frames:
       - intent: HassGetState
         combination: domain_state_area

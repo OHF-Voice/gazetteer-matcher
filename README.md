@@ -262,7 +262,9 @@ intent frames. The corpus is based on Home Assistant's
 
 ```yaml
 cases:
-  - sentence: is the front door locked
+  - sentences:
+      - is the front door locked
+      - is the front door currently locked
     frames:
       - intent: HassGetState
         combination: name_state
@@ -274,6 +276,16 @@ cases:
 compares every resulting intent, combination, slot dictionary, and response
 key. Add home-specific positive coverage there instead of embedding it in
 Python test code.
+
+A case or series turn may use either one `sentence` or a non-empty `sentences`
+list. Every sentence in the list is tested with the same context and expected
+frames. Alternatives on a series turn must also produce identical follow-up
+targets, so the next turn has unambiguous conversation state. Use a list for
+natural equivalent forms, not for different intents or target scopes.
+
+Set `requires_fuzzy: true` on a case that specifically exercises typo recovery.
+Besides checking the frames, the runner then requires at least one selected
+lexical span to come from fuzzy matching.
 
 For `HassGetState`, the response key preserves question wording that is not
 represented by slots. For example, `are any doors unlocked` and `which doors
@@ -313,6 +325,12 @@ small set of canonical anchors, then emphasizes useful fallback behavior such
 as aliases, terse queries, alternate word order, scoped state questions,
 coordination, anaphora, and fuzzy names. The broader upstream fallback cohort
 is measured separately by `script/run_english_coverage.py`.
+
+When adding alternatives to a `sentences` list, first check them against the
+full English HassIL grammar. Keep additions that receive no built-in match and
+that represent wording a user might reasonably choose; the purpose is to show
+how this matcher complements the built-in grammar, not to accumulate contrived
+phrases it happens to accept.
 
 ### Rejection tests
 

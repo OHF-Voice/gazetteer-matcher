@@ -3,7 +3,9 @@ language: en
 # Adapted from Home Assistant's built-in sentence starter pack:
 # https://www.home-assistant.io/voice_control/builtin_sentences
 cases:
-  - sentence: open the bedroom blinds
+  - sentences:
+      - open the bedroom blinds
+      - bedroom blinds open
     frames:
       - intent: HassTurnOn
         combination: name_only
@@ -28,7 +30,9 @@ cases:
         response_key: which
         slots: {name: cover.bedroom_blinds, state: closed}
 
-  - sentence: set bedroom blinds to 50%
+  - sentences:
+      - set bedroom blinds to 50%
+      - bedroom blinds fifty percent
     frames:
       - intent: HassSetPosition
         combination: name_only

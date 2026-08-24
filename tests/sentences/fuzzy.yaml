@@ -1,0 +1,48 @@
+language: en
+
+# Plausible transcription misspellings that exercise fuzzy actions, areas,
+# entity names, and aliases. The extra assertion ensures these do not silently
+# become exact vocabulary entries later.
+cases:
+  - sentence: illumanate the bedroom lamp
+    requires_fuzzy: true
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: light.bedroom_lamp}
+
+  - sentence: turn on the kitchn lights
+    requires_fuzzy: true
+    frames:
+      - intent: HassTurnOn
+        combination: area_domain
+        slots: {area: kitchen, domain: light}
+
+  - sentence: turn on the bedrom lamp
+    requires_fuzzy: true
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: light.bedroom_lamp}
+
+  - sentence: pause televsion
+    requires_fuzzy: true
+    frames:
+      - intent: HassMediaPause
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: what is the wether
+    requires_fuzzy: true
+    frames:
+      - intent: HassGetWeather
+        combination: default
+        slots: {}
+
+  - sentence: is the frnt door locked
+    requires_fuzzy: true
+    frames:
+      - intent: HassGetState
+        combination: name_state
+        response_key: one_yesno
+        slots: {name: lock.front_door, state: locked}

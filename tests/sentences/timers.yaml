@@ -9,7 +9,9 @@ cases:
         combination: minutes_only
         slots: {minutes: 5}
 
-  - sentence: 5 minute timer
+  - sentences:
+      - 5 minute timer
+      - timer five minutes
     frames:
       - intent: HassStartTimer
         combination: minutes_only

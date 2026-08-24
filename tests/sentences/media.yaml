@@ -71,13 +71,17 @@ cases:
         combination: default
         slots: {area: living_room}
 
-  - sentence: pause living room music
+  - sentences:
+      - pause living room music
+      - pause playback in the living room
     frames:
       - intent: HassMediaPause
         combination: area_only
         slots: {area: living_room}
 
-  - sentence: resume living room music
+  - sentences:
+      - resume living room music
+      - resume playback in the living room
     frames:
       - intent: HassMediaUnpause
         combination: area_only
@@ -125,7 +129,7 @@ cases:
         combination: name_only
         slots: {name: media_player.bedroom_tv, volume_level: 90}
 
-  - sentence: turn TV volume down to 90 percent
+  - sentence: turn TV volume down to 90%
     context_area: Living Room
     frames:
       - intent: HassSetVolume

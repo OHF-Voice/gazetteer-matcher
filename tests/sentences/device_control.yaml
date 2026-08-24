@@ -1,7 +1,5 @@
 language: en
 
-# Adapted from Home Assistant's built-in sentence starter pack:
-# https://www.home-assistant.io/voice_control/builtin_sentences
 cases:
   - sentence: turn on the kitchen lights
     frames:
@@ -21,7 +19,9 @@ cases:
         combination: name_only
         slots: {name: light.living_room_ceiling}
 
-  - sentence: return rover to base
+  - sentences:
+      - return rover to base
+      - rover return to base
     frames:
       - intent: HassVacuumReturnToBase
         combination: name_only
@@ -40,26 +40,36 @@ cases:
         combination: name_only
         slots: {name: media_player.living_room}
 
-  - sentence: could you lock the front door
+  - sentences:
+      - could you lock the front door
+      - front door lock
     frames:
       - intent: HassTurnOn
         combination: name_only
         slots: {name: lock.front_door}
 
-  - sentence: unlock the front door
+  - sentences:
+      - unlock the front door
+      - front door unlock
     frames:
       - intent: HassTurnOff
         combination: name_only
         slots: {name: lock.front_door}
 
-  - sentence: is the front door locked
+  - sentences:
+      - is the front door locked
+      - front door is locked
+      - is the front door currently locked
     frames:
       - intent: HassGetState
         combination: name_state
         response_key: one_yesno
         slots: {name: lock.front_door, state: locked}
 
-  - sentence: are any doors unlocked
+  - sentences:
+      - are any doors unlocked
+      - are any doors currently unlocked
+      - check whether any doors are unlocked
     frames:
       - intent: HassGetState
         combination: domain_state
@@ -72,7 +82,7 @@ cases:
         combination: name_only
         slots: {name: fan.bedroom, percentage: 50}
 
-  - sentence: set thermostat to 70 degrees
+  - sentence: set thermostat to 70°
     frames:
       - intent: HassClimateSetTemperature
         combination: name_temperature

@@ -1,8 +1,6 @@
 language: en
 
-# Basic mower commands from the fallback cohort. Named mower and vacuum
-# commands have separate known matcher gaps and are intentionally not encoded
-# here as successful interpretations.
+# Basic mower commands plus natural name-first fallback forms.
 cases:
   - sentence: start mowing
     frames:
@@ -27,3 +25,17 @@ cases:
       - intent: HassLawnMowerDock
         combination: default
         slots: {}
+
+  - sentences:
+      - clippy start mowing
+      - clippy mow
+    frames:
+      - intent: HassLawnMowerStartMowing
+        combination: name_only
+        slots: {name: lawn_mower.clippy}
+
+  - sentence: clippy stop mowing
+    frames:
+      - intent: HassLawnMowerDock
+        combination: name_only
+        slots: {name: lawn_mower.clippy}

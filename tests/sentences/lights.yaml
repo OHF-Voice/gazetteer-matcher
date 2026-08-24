@@ -9,7 +9,9 @@ cases:
         combination: area_domain
         slots: {area: kitchen, domain: light}
 
-  - sentence: turn on the bedroom lamp
+  - sentences:
+      - turn on the bedroom lamp
+      - illuminate the bedroom lamp
     frames:
       - intent: HassTurnOn
         combination: name_only
@@ -46,7 +48,9 @@ cases:
         combination: brightness_only
         slots: {area: living_room, brightness: 50, domain: light}
 
-  - sentence: set kitchen lights to red
+  - sentences:
+      - set kitchen lights to red
+      - kitchen lights red
     frames:
       - intent: HassLightSet
         combination: area_color
@@ -87,7 +91,9 @@ cases:
         combination: area_domain
         slots: {area: hallway, domain: light}
 
-  - sentence: turn on the hallway light and set its brightness to 40%
+  - sentences:
+      - turn on the hallway light and set its brightness to 40%
+      - hallway light on and brightness forty percent
     frames:
       - intent: HassTurnOn
         combination: name_only

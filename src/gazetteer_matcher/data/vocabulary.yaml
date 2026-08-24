@@ -34,6 +34,24 @@ anaphora:
 coordination_references:
   singular: [its]
 
+# Successful intent frames may carry a response-template key when wording
+# distinguishes otherwise identical intents and slots. These names mirror the
+# response keys in home-assistant-intents.
+response_hints:
+  HassGetState:
+    phrases:
+      any: [any, anyone, anybody, someone, somebody]
+      all: [all, everyone, everybody]
+      which: [which, who]
+      how_many: [how many]
+    defaults:
+      name_only: one
+      name_state: one_yesno
+      name_state_area: one_yesno
+      name_state_floor: one_yesno
+      name_where: where
+      name_zone: one_yesno
+
 skip_phrases:
   - the
   - a

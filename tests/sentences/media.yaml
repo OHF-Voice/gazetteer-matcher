@@ -4,6 +4,7 @@ language: en
 # https://www.home-assistant.io/voice_control/builtin_sentences
 cases:
   - sentence: next item on TV
+    context_area: Living Room
     frames:
       - intent: HassMediaNext
         combination: name_only
@@ -36,18 +37,21 @@ cases:
         slots: {area: living_room}
 
   - sentence: skip song on the TV
+    context_area: Bedroom
     frames:
       - intent: HassMediaNext
         combination: name_only
-        slots: {name: media_player.living_room}
+        slots: {name: media_player.bedroom_tv}
 
   - sentence: skip track on the TV
+    context_area: Living Room
     frames:
       - intent: HassMediaNext
         combination: name_only
         slots: {name: media_player.living_room}
 
   - sentence: skip to the next song on the TV
+    context_area: Living Room
     frames:
       - intent: HassMediaNext
         combination: name_only
@@ -80,48 +84,56 @@ cases:
         slots: {area: living_room}
 
   - sentence: pause TV
+    context_area: Living Room
     frames:
       - intent: HassMediaPause
         combination: name_only
         slots: {name: media_player.living_room}
 
   - sentence: resume TV
+    context_area: Bedroom
     frames:
       - intent: HassMediaUnpause
         combination: name_only
-        slots: {name: media_player.living_room}
+        slots: {name: media_player.bedroom_tv}
 
   - sentence: unpause TV
+    context_area: Living Room
     frames:
       - intent: HassMediaUnpause
         combination: name_only
         slots: {name: media_player.living_room}
 
   - sentence: TV unpause
+    context_area: Living Room
     frames:
       - intent: HassMediaUnpause
         combination: name_only
         slots: {name: media_player.living_room}
 
   - sentence: set TV volume to 90 percent
+    context_area: Living Room
     frames:
       - intent: HassSetVolume
         combination: name_only
         slots: {name: media_player.living_room, volume_level: 90}
 
   - sentence: change the TV volume to 90
+    context_area: Bedroom
     frames:
       - intent: HassSetVolume
         combination: name_only
-        slots: {name: media_player.living_room, volume_level: 90}
+        slots: {name: media_player.bedroom_tv, volume_level: 90}
 
   - sentence: turn TV volume down to 90 percent
+    context_area: Living Room
     frames:
       - intent: HassSetVolume
         combination: name_only
         slots: {name: media_player.living_room, volume_level: 90}
 
   - sentence: mute my TV
+    context_area: Living Room
     frames:
       - intent: HassMediaPlayerMute
         combination: name_only

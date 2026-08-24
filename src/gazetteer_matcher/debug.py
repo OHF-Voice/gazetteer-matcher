@@ -51,6 +51,8 @@ def render_candidate(candidate: FrameCandidate, tokens: list[Token]) -> str:
         f"{candidate.intent}.{candidate.combination} action={candidate.action!r} cost={candidate.cost}",
         f"  slots={candidate.slots}",
     ]
+    if candidate.response_key:
+        lines.append(f"  response_key={candidate.response_key!r}")
     if inherited or candidate.inherited_action:
         lines.append(
             f"  inherited_action={candidate.inherited_action} inherited_slots={inherited}"
@@ -128,6 +130,8 @@ def render_interpretation(result: Interpretation, *, candidate_limit: int = 12) 
         for frame in result.frames:
             lines.append(f"  - intent: {frame.intent}")
             lines.append(f"    combination: {frame.combination}")
+            if frame.response_key:
+                lines.append(f"    response_key: {frame.response_key}")
             lines.append(f"    slots: {frame.slots}")
     return "\n".join(lines)
 
@@ -166,6 +170,7 @@ def interpretation_to_dict(
                 "combination": frame.combination,
                 "action": frame.action,
                 "slots": frame.slots,
+                "response_key": frame.response_key,
                 "cost": list(frame.cost),
             }
             for frame in result.frames
@@ -189,6 +194,7 @@ def interpretation_to_dict(
                         "intent": segment.chosen.intent,
                         "combination": segment.chosen.combination,
                         "slots": segment.chosen.slots,
+                        "response_key": segment.chosen.response_key,
                         "cost": list(segment.chosen.cost),
                     }
                     if segment.chosen
@@ -200,6 +206,7 @@ def interpretation_to_dict(
                         "combination": candidate.combination,
                         "action": candidate.action,
                         "slots": candidate.slots,
+                        "response_key": candidate.response_key,
                         "cost": list(candidate.cost),
                         "violations": candidate.violations,
                         "unexplained_tokens": candidate.unexplained_tokens,

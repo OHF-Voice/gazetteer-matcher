@@ -80,6 +80,16 @@ class SpanTagger:
             for phrase in phrases or []:
                 self._add(phrase, "coordination_reference", number)
 
+        for intent, spec in (vocab.get("response_hints") or {}).items():
+            for response_key, phrases in (spec.get("phrases") or {}).items():
+                for phrase in phrases or []:
+                    self._add(
+                        phrase,
+                        "response_key",
+                        response_key,
+                        meta={"intent": intent},
+                    )
+
         for phrase, kind in (vocab.get("conjunctions") or {}).items():
             self._add(phrase, "conjunction", kind)
 
@@ -574,6 +584,7 @@ class SpanTagger:
             "anaphor",
             "anaphora_modifier",
             "coordination_reference",
+            "response_key",
         }
         covered: set[int] = set()
         blocked: set[int] = set()

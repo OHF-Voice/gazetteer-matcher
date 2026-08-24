@@ -87,6 +87,11 @@ entities:
     domain: media_player
     area: living_room
     floor: ground
+  media_player.bedroom_tv:
+    name: TV
+    domain: media_player
+    area: bedroom
+    floor: upstairs
   script.stealth_mode:
     name: Stealth Mode
     aliases: [stealth mode, stealth mode script]

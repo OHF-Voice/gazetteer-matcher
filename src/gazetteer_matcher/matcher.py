@@ -106,6 +106,9 @@ class GazetteerMatcher:
         self.combo_cues: dict[str, dict[str, Any]] = (
             self.config.vocabulary.get("combination_cues") or {}
         )
+        self.response_hints: dict[str, dict[str, Any]] = (
+            self.config.vocabulary.get("response_hints") or {}
+        )
         acceptance = self.config.vocabulary.get("acceptance") or {}
         legacy_max_unexplained = acceptance.get("max_unexplained_content_tokens")
         self.max_unexplained_important = int(
@@ -1020,6 +1023,10 @@ class GazetteerMatcher:
             if span.tag in {"skip", "coordination_reference"}:
                 consumed.update(self._span_indexes(span))
 
+        for span in local_spans:
+            if span.tag == "response_key" and span.meta.get("intent") == intent:
+                consumed.update(self._span_indexes(span))
+
         cue_cfg = self.combo_cues.get(f"{intent}.{combo.name}", {})
         allowed_cues = set(cue_cfg.get("require_cues") or [])
         allowed_cues.add("quantifier_all")
@@ -1201,7 +1208,34 @@ class GazetteerMatcher:
             target_scope=self._selection_target_scope(combo, slot_values),
             violations=violations,
             cost=cost,
+            response_key=self._response_key(intent, combo.name, local_spans),
         )
+
+    def _response_key(
+        self,
+        intent: str,
+        combination: str,
+        local_spans: list[Span],
+    ) -> str | None:
+        """Return an utterance hint for a successful response template.
+
+        Lexical hints take precedence over combination defaults because query
+        wording such as ``which`` can be meaningful even when a home alias
+        makes the selected target more specific than the upstream sentence
+        shape normally would be.
+        """
+        spec = self.response_hints.get(intent) or {}
+        keys = {
+            str(span.value)
+            for span in local_spans
+            if span.tag == "response_key" and span.meta.get("intent") == intent
+        }
+        if len(keys) == 1:
+            return next(iter(keys))
+        if len(keys) > 1:
+            return None
+        default = (spec.get("defaults") or {}).get(combination)
+        return str(default) if default else None
 
     @staticmethod
     def _selection_target_scope(

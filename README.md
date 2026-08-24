@@ -92,7 +92,7 @@ result = matcher.interpret("flick on the kichen lights")
 assert result.accepted
 
 for frame in result.frames:
-    print(frame.intent, frame.combination, frame.slots)
+    print(frame.intent, frame.combination, frame.slots, frame.response_key)
 ```
 
 The default home is empty. Home configuration may be supplied directly as a
@@ -266,13 +266,22 @@ cases:
     frames:
       - intent: HassGetState
         combination: name_state
+        response_key: one_yesno
         slots: {name: lock.front_door, state: locked}
 ```
 
 `tests/test_sentences.py` discovers every YAML file in that directory and
-compares every resulting intent, combination, and slot dictionary. Add
-home-specific positive coverage there instead of embedding it in Python test
-code.
+compares every resulting intent, combination, slot dictionary, and response
+key. Add home-specific positive coverage there instead of embedding it in
+Python test code.
+
+For `HassGetState`, the response key preserves question wording that is not
+represented by slots. For example, `are any doors unlocked` and `which doors
+are unlocked` both produce `HassGetState.domain_state` with `{domain: lock,
+state: unlocked}`, but their frames carry `any` and `which` respectively.
+Aggregate query keys (`any`, `all`, `which`, and `how_many`) come from lexical
+hints configured in `vocabulary.yaml`; fixed shapes use their corresponding
+combination default (`one`, `one_yesno`, or `where`).
 
 Multi-turn follow-ups use a `series` record. Turns run in order, and the
 targets from each accepted result are automatically passed to the next turn as

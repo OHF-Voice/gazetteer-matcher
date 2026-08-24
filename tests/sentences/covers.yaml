@@ -25,6 +25,7 @@ cases:
     frames:
       - intent: HassGetState
         combination: name_state
+        response_key: which
         slots: {name: cover.bedroom_blinds, state: closed}
 
   - sentence: set bedroom blinds to 50%

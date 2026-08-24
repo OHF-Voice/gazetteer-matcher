@@ -418,6 +418,25 @@ def test_get_entity_state(matcher):
         "name": "light.bedroom_lamp",
         "state": "on",
     }
+    assert result.frames[0].response_key == "one_yesno"
+
+
+@pytest.mark.parametrize(
+    ("text", "response_key"),
+    [
+        ("are any doors unlocked", "any"),
+        ("are all the doors locked", "all"),
+        ("which doors are unlocked", "which"),
+        ("how many doors are locked", "how_many"),
+    ],
+)
+def test_get_state_response_key_follows_question_wording(matcher, text, response_key):
+    result = matcher.interpret(text)
+
+    assert result.accepted
+    assert result.frames[0].intent == "HassGetState"
+    assert result.frames[0].combination == "domain_state"
+    assert result.frames[0].response_key == response_key
 
 
 def test_get_temperature(matcher):

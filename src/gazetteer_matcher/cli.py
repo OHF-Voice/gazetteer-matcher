@@ -84,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
                             "intent": frame.intent,
                             "combination": frame.combination,
                             "slots": frame.slots,
+                            "response_key": frame.response_key,
                         }
                         for frame in result.frames
                     ],

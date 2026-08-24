@@ -73,6 +73,7 @@ class FrameCandidate:
     target_scope: TargetScope | None = None
     violations: list[str] = field(default_factory=list)
     cost: tuple[Any, ...] = ()
+    response_key: str | None = None
 
     @property
     def unexplained_tokens(self) -> list[int]:
@@ -85,7 +86,7 @@ class FrameCandidate:
         normalized = tuple(
             sorted((key, repr(value)) for key, value in self.slots.items())
         )
-        return self.intent, normalized
+        return self.intent, normalized, self.response_key
 
 
 @dataclass

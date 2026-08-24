@@ -1,61 +1,70 @@
 language: en
 
 # Representative state cardinalities and scopes from the English
-# intent-sentences tests. The matcher extracts query semantics; response
-# cardinality is handled downstream by Home Assistant.
+# intent-sentences tests. The response key preserves the question form for
+# downstream rendering when intent, combination, and slots are otherwise equal.
 cases:
   - sentence: are any lights on
     frames:
       - intent: HassGetState
         combination: domain_state
+        response_key: any
         slots: {domain: light, state: "on"}
 
   - sentence: please are any lights on
     frames:
       - intent: HassGetState
         combination: domain_state
+        response_key: any
         slots: {domain: light, state: "on"}
 
   - sentence: are all the lights off
     frames:
       - intent: HassGetState
         combination: domain_state
+        response_key: all
         slots: {domain: light, state: "off"}
 
   - sentence: which lights are on
     frames:
       - intent: HassGetState
         combination: domain_state
+        response_key: which
         slots: {domain: light, state: "on"}
 
   - sentence: how many lights are on
     frames:
       - intent: HassGetState
         combination: domain_state
+        response_key: how_many
         slots: {domain: light, state: "on"}
 
   - sentence: are any kitchen lights on
     frames:
       - intent: HassGetState
         combination: domain_state_area
+        response_key: any
         slots: {area: kitchen, domain: light, state: "on"}
 
   - sentence: which lights are on in the kitchen
     frames:
       - intent: HassGetState
         combination: domain_state_area
+        response_key: which
         slots: {area: kitchen, domain: light, state: "on"}
 
   - sentence: which windows are open
     frames:
       - intent: HassGetState
         combination: device_class_state
+        response_key: which
         slots: {domain: cover, device_class: window, state: open}
 
   - sentence: are any upstairs windows open
     frames:
       - intent: HassGetState
         combination: device_class_state_floor
+        response_key: any
         slots:
           {floor: upstairs, domain: cover, device_class: window, state: open}
 
@@ -63,6 +72,7 @@ cases:
     frames:
       - intent: HassGetState
         combination: device_class_state_floor
+        response_key: which
         slots:
           {floor: upstairs, domain: cover, device_class: window, state: open}
 
@@ -70,34 +80,40 @@ cases:
     frames:
       - intent: HassGetState
         combination: domain_state_floor
+        response_key: any
         slots: {floor: upstairs, domain: light, state: "on"}
 
   - sentence: which upstairs lights are on
     frames:
       - intent: HassGetState
         combination: domain_state_floor
+        response_key: which
         slots: {floor: upstairs, domain: light, state: "on"}
 
   - sentence: please tell me the outside temperature
     frames:
       - intent: HassGetState
         combination: name_only
+        response_key: one
         slots: {name: sensor.outside_temperature}
 
   - sentence: how is the outside temperature
     frames:
       - intent: HassGetState
         combination: name_only
+        response_key: one
         slots: {name: sensor.outside_temperature}
 
   - sentence: where is jane
     frames:
       - intent: HassGetState
         combination: name_where
+        response_key: where
         slots: {name: person.jane}
 
   - sentence: is jane home
     frames:
       - intent: HassGetState
         combination: name_zone
+        response_key: one_yesno
         slots: {name: person.jane, state: home}

@@ -35,6 +35,7 @@ series:
         frames:
           - intent: HassGetState
             combination: name_state
+            response_key: one_yesno
             slots: {name: lock.front_door, state: locked}
       - sentence: unlock it
         frames:

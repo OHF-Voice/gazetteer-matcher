@@ -33,14 +33,17 @@ def load_sentence_series() -> list[dict[str, Any]]:
 
 
 def actual_frames(result) -> list[dict[str, Any]]:
-    return [
-        {
+    frames: list[dict[str, Any]] = []
+    for frame in result.frames:
+        item = {
             "intent": frame.intent,
             "combination": frame.combination,
             "slots": frame.slots,
         }
-        for frame in result.frames
-    ]
+        if frame.response_key is not None:
+            item["response_key"] = frame.response_key
+        frames.append(item)
+    return frames
 
 
 SENTENCE_CASES = load_sentence_cases()

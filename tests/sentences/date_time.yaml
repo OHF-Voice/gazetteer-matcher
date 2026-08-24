@@ -19,4 +19,5 @@ cases:
     frames:
       - intent: HassGetState
         combination: name_only
+        response_key: one
         slots: {name: sensor.outside_temperature}

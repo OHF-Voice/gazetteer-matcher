@@ -34,6 +34,7 @@ cases:
         slots: {name: fan.bedroom}
 
   - sentence: please turn on the TV
+    context_area: Living Room
     frames:
       - intent: HassTurnOn
         combination: name_only
@@ -55,12 +56,14 @@ cases:
     frames:
       - intent: HassGetState
         combination: name_state
+        response_key: one_yesno
         slots: {name: lock.front_door, state: locked}
 
-  - sentence: which doors would you say are unlocked
+  - sentence: are any doors unlocked
     frames:
       - intent: HassGetState
         combination: domain_state
+        response_key: any
         slots: {domain: lock, state: unlocked}
 
   - sentence: set bedroom fan speed to 50%
@@ -70,6 +73,12 @@ cases:
         slots: {name: fan.bedroom, percentage: 50}
 
   - sentence: set thermostat to 70 degrees
+    frames:
+      - intent: HassClimateSetTemperature
+        combination: name_temperature
+        slots: {name: climate.ecobee, temperature: 70}
+
+  - sentence: set Ecobee to seventy degrees
     frames:
       - intent: HassClimateSetTemperature
         combination: name_temperature

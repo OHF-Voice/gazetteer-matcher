@@ -7,28 +7,33 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: floor_domain
+        response_key: lights_floor
         slots: {floor: upstairs, domain: light}
 
   - sentence: turn off the lights on the ground floor
     frames:
       - intent: HassTurnOff
         combination: floor_domain
+        response_key: lights_floor
         slots: {floor: ground, domain: light}
 
   - sentence: set upstairs brightness to 50%
     frames:
       - intent: HassLightSet
         combination: floor_brightness
+        response_key: brightness
         slots: {floor: upstairs, brightness: 50, domain: light}
 
   - sentence: turn on the lights on the second floor
     frames:
       - intent: HassTurnOn
         combination: floor_domain
+        response_key: lights_floor
         slots: {floor: upstairs, domain: light}
 
   - sentence: turn off downstairs lights
     frames:
       - intent: HassTurnOff
         combination: floor_domain
+        response_key: lights_floor
         slots: {floor: ground, domain: light}

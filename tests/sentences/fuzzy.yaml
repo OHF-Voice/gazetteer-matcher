@@ -9,6 +9,7 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: default
         slots: {name: light.bedroom_lamp}
 
   - sentence: turn on the kitchn lights
@@ -16,6 +17,7 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: area_domain
+        response_key: lights_area
         slots: {area: kitchen, domain: light}
 
   - sentence: turn on the bedrom lamp
@@ -23,6 +25,7 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: default
         slots: {name: light.bedroom_lamp}
 
   - sentence: pause televsion
@@ -30,6 +33,7 @@ cases:
     frames:
       - intent: HassMediaPause
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: what is the wether
@@ -37,6 +41,7 @@ cases:
     frames:
       - intent: HassGetWeather
         combination: default
+        response_key: default
         slots: {}
 
   - sentence: is the frnt door locked

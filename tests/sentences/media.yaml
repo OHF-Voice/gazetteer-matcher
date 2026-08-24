@@ -8,6 +8,7 @@ cases:
     frames:
       - intent: HassMediaNext
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: next track
@@ -15,12 +16,14 @@ cases:
     frames:
       - intent: HassMediaNext
         combination: default
+        response_key: default
         slots: {area: living_room}
 
   - sentence: next track in living room
     frames:
       - intent: HassMediaNext
         combination: area_only
+        response_key: default
         slots: {area: living_room}
 
   - sentence: previous track
@@ -28,12 +31,14 @@ cases:
     frames:
       - intent: HassMediaPrevious
         combination: default
+        response_key: default
         slots: {area: living_room}
 
   - sentence: previous track in living room
     frames:
       - intent: HassMediaPrevious
         combination: area_only
+        response_key: default
         slots: {area: living_room}
 
   - sentence: skip song on the TV
@@ -41,6 +46,7 @@ cases:
     frames:
       - intent: HassMediaNext
         combination: name_only
+        response_key: default
         slots: {name: media_player.bedroom_tv}
 
   - sentence: skip track on the TV
@@ -48,6 +54,7 @@ cases:
     frames:
       - intent: HassMediaNext
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: skip to the next song on the TV
@@ -55,6 +62,7 @@ cases:
     frames:
       - intent: HassMediaNext
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: pause
@@ -62,6 +70,7 @@ cases:
     frames:
       - intent: HassMediaPause
         combination: default
+        response_key: default
         slots: {area: living_room}
 
   - sentence: resume
@@ -69,6 +78,7 @@ cases:
     frames:
       - intent: HassMediaUnpause
         combination: default
+        response_key: default
         slots: {area: living_room}
 
   - sentences:
@@ -77,6 +87,7 @@ cases:
     frames:
       - intent: HassMediaPause
         combination: area_only
+        response_key: default
         slots: {area: living_room}
 
   - sentences:
@@ -85,6 +96,7 @@ cases:
     frames:
       - intent: HassMediaUnpause
         combination: area_only
+        response_key: default
         slots: {area: living_room}
 
   - sentence: pause TV
@@ -92,6 +104,7 @@ cases:
     frames:
       - intent: HassMediaPause
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: resume TV
@@ -99,6 +112,7 @@ cases:
     frames:
       - intent: HassMediaUnpause
         combination: name_only
+        response_key: default
         slots: {name: media_player.bedroom_tv}
 
   - sentence: unpause TV
@@ -106,6 +120,7 @@ cases:
     frames:
       - intent: HassMediaUnpause
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: TV unpause
@@ -113,6 +128,7 @@ cases:
     frames:
       - intent: HassMediaUnpause
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: set TV volume to 90 percent
@@ -120,6 +136,7 @@ cases:
     frames:
       - intent: HassSetVolume
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room, volume_level: 90}
 
   - sentence: change the TV volume to 90
@@ -127,6 +144,7 @@ cases:
     frames:
       - intent: HassSetVolume
         combination: name_only
+        response_key: default
         slots: {name: media_player.bedroom_tv, volume_level: 90}
 
   - sentence: turn TV volume down to 90%
@@ -134,6 +152,7 @@ cases:
     frames:
       - intent: HassSetVolume
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room, volume_level: 90}
 
   - sentence: mute my TV
@@ -141,24 +160,28 @@ cases:
     frames:
       - intent: HassMediaPlayerMute
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: unmute the television
     frames:
       - intent: HassMediaPlayerUnmute
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentence: increase living room volume by 10 percent
     frames:
       - intent: HassSetVolumeRelative
         combination: area_only
+        response_key: default
         slots: {area: living_room, volume_step: 10}
 
   - sentence: turn living room volume down by 20 percent
     frames:
       - intent: HassSetVolumeRelative
         combination: area_only
+        response_key: default
         slots: {area: living_room, volume_step: -20}
 
   - sentence: volume up
@@ -166,4 +189,5 @@ cases:
     frames:
       - intent: HassSetVolumeRelative
         combination: default
+        response_key: default
         slots: {area: living_room, volume_step: up}

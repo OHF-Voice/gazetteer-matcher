@@ -10,6 +10,7 @@ cases:
     frames:
       - intent: HassGetWeather
         combination: default
+        response_key: default
         slots: {}
 
   - sentences:
@@ -20,4 +21,5 @@ cases:
     frames:
       - intent: HassGetWeather
         combination: name_only
+        response_key: default
         slots: {name: weather.london}

@@ -7,6 +7,7 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: area_domain
+        response_key: lights_area
         slots: {area: kitchen, domain: light}
 
   - sentences:
@@ -15,30 +16,35 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: default
         slots: {name: light.bedroom_lamp}
 
   - sentence: change kitchen lights brightness to 50%
     frames:
       - intent: HassLightSet
         combination: area_brightness
+        response_key: brightness
         slots: {area: kitchen, brightness: 50, domain: light}
 
   - sentence: set bedroom lamp to green
     frames:
       - intent: HassLightSet
         combination: name_color
+        response_key: color
         slots: {name: light.bedroom_lamp, color: green}
 
   - sentence: set bedroom lamp brightness to 50%
     frames:
       - intent: HassLightSet
         combination: name_brightness
+        response_key: brightness
         slots: {name: light.bedroom_lamp, brightness: 50}
 
   - sentence: set living room brightness to 50%
     frames:
       - intent: HassLightSet
         combination: area_brightness
+        response_key: brightness
         slots: {area: living_room, brightness: 50, domain: light}
 
   - sentence: set brightness to 50%
@@ -46,6 +52,7 @@ cases:
     frames:
       - intent: HassLightSet
         combination: brightness_only
+        response_key: brightness
         slots: {area: living_room, brightness: 50, domain: light}
 
   - sentences:
@@ -54,6 +61,7 @@ cases:
     frames:
       - intent: HassLightSet
         combination: area_color
+        response_key: color
         slots: {area: kitchen, color: red, domain: light}
 
   - sentence: set lights to red
@@ -61,12 +69,14 @@ cases:
     frames:
       - intent: HassLightSet
         combination: color_only
+        response_key: color
         slots: {area: living_room, color: red, domain: light}
 
   - sentence: turn on the lights in the living room
     frames:
       - intent: HassTurnOn
         combination: area_domain
+        response_key: lights_area
         slots: {area: living_room, domain: light}
 
   - sentence: turn off the lights
@@ -74,21 +84,25 @@ cases:
     frames:
       - intent: HassTurnOff
         combination: domain_only
+        response_key: lights_area
         slots: {area: kitchen, domain: light}
 
   - sentence: turn all lights off
     frames:
       - intent: HassTurnOff
         combination: domain_all
+        response_key: light_all
         slots: {domain: light}
 
   - sentence: turn on the kitchen and hallway lights
     frames:
       - intent: HassTurnOn
         combination: area_domain
+        response_key: lights_area
         slots: {area: kitchen, domain: light}
       - intent: HassTurnOn
         combination: area_domain
+        response_key: lights_area
         slots: {area: hallway, domain: light}
 
   - sentences:
@@ -97,7 +111,9 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: default
         slots: {name: light.hallway}
       - intent: HassLightSet
         combination: name_brightness
+        response_key: brightness
         slots: {name: light.hallway, brightness: 40}

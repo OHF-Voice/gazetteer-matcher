@@ -9,6 +9,7 @@ series:
         frames:
           - intent: HassTurnOn
             combination: area_domain
+            response_key: lights_area
             slots: {area: kitchen, domain: light}
       - sentences:
           - turn them off
@@ -16,6 +17,7 @@ series:
         frames:
           - intent: HassTurnOff
             combination: area_domain
+            response_key: lights_area
             slots: {area: kitchen, domain: light}
 
   - name: reordered entity name can be reused by them
@@ -24,11 +26,13 @@ series:
         frames:
           - intent: HassTurnOn
             combination: name_only
+            response_key: default
             slots: {name: light.living_room_ceiling}
       - sentence: turn them off
         frames:
           - intent: HassTurnOff
             combination: name_only
+            response_key: default
             slots: {name: light.living_room_ceiling}
 
   - name: state query target can be unlocked with it
@@ -43,6 +47,7 @@ series:
         frames:
           - intent: HassTurnOff
             combination: name_only
+            response_key: lock
             slots: {name: lock.front_door}
 
   - name: repeated compound target is exported once
@@ -51,14 +56,17 @@ series:
         frames:
           - intent: HassTurnOn
             combination: name_only
+            response_key: default
             slots: {name: light.hallway}
           - intent: HassLightSet
             combination: name_brightness
+            response_key: brightness
             slots: {name: light.hallway, brightness: 40}
       - sentence: turn it off
         frames:
           - intent: HassTurnOff
             combination: name_only
+            response_key: default
             slots: {name: light.hallway}
 
   - name: cover target supports again
@@ -67,9 +75,11 @@ series:
         frames:
           - intent: HassTurnOff
             combination: name_only
+            response_key: cover
             slots: {name: cover.bedroom_blinds}
       - sentence: open them again
         frames:
           - intent: HassTurnOn
             combination: name_only
+            response_key: cover
             slots: {name: cover.bedroom_blinds}

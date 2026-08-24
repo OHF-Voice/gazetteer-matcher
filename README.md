@@ -143,6 +143,51 @@ when several areas contain an entity named `Ceiling Light`, the entity in the
 context area wins; context floor is a secondary fallback. Without context the
 same duplicate-name match remains ambiguous.
 
+## Embedding in an application
+
+### A home that changes while you run
+
+`set_home` replaces the gazetteer without rebuilding anything else. Only the
+span tagger and the rejection wording depend on the home; the vocabulary, the
+intent catalog and the number-word trie are left alone, so this is orders of
+magnitude cheaper than constructing a new matcher:
+
+```python
+matcher.set_home(home_read_from_wherever_it_lives)
+```
+
+An application whose entities can be renamed while it runs should hold one
+matcher and call this, rather than build a new one each time.
+
+`interpret` reads only, so several threads may call it at once. `set_home`
+writes, and interpretations already in flight keep the tagger they started
+with; serialize it against them if that matters.
+
+### Saying back what was acted on
+
+Frames carry the ids the home was keyed by, since those are what an application
+acts on. `display_name` is the other direction:
+
+```python
+matcher.display_name("name", "cover.bedroom_blinds")   # "Bedroom Blinds"
+matcher.display_name("area", "kitchen")                # "Kitchen"
+matcher.display_name("brightness", 50)                 # "50", unchanged
+```
+
+### Response keys
+
+Every accepted frame carries a `response_key` naming the response the upstream
+corpus writes for that shape, narrowed by the target's domain — `HassTurnOn`
+answers `lights_area` for an area of lights and `cover` for a named blind. The
+keys come from the same `home-assistant-intents` release the frames are
+validated against, so they cannot name a template that is not there.
+
+Where the corpus answers one shape more than one way, wording decides. "How
+many lights are on" and "are any lights on" are the same frame; the words said
+select `how_many` or `any` through the `response_hints` in `vocabulary.yaml`.
+Where neither settles it, `response_key` is `None` and the caller should say
+nothing rather than guess.
+
 ## Follow-up targets
 
 The matcher is stateless, but a caller may pass the targets from the most
@@ -158,6 +203,22 @@ result = matcher.interpret(
 
 assert result.frames[0].slots == {"name": "cover.bedroom_blinds"}
 ```
+
+A caller whose previous turn was answered by something else — another matcher,
+a hand-written rule — can build the targets itself instead. The constructors
+validate as they go, so a mistake is reported where it was made rather than on
+the next `interpret`:
+
+```python
+from gazetteer_matcher import TargetReference
+
+previous = (TargetReference.for_entity("cover.bedroom_blinds"),)
+result = matcher.interpret("close them", previous_targets=previous)
+```
+
+`for_area` and `for_floor` take the same optional `domain`/`device_class`
+keywords, so "turn them off" after a command about the kitchen lights reuses
+the lights rather than the whole room.
 
 Only `it` and `them` trigger target reuse. The modifiers `back` and `again`
 are accepted with those pronouns, and reuse is limited to turn-on, turn-off,
@@ -373,6 +434,17 @@ assert result.response == (
 be spoken to a user. `rejection_code` lets an integration choose a different
 delivery policy, while `response` is ready to use when no fallback LLM is
 available. Accepted interpretations have neither field.
+
+Most refusals explain nothing, because noise resolves nothing: "asdfgh" and "do
+something" both come back as the same generic wording. `refusal_target` names
+what the refusal was aimed at when it was aimed at anything, so a caller with a
+decent error message of its own can tell the two apart and keep it:
+
+```python
+matcher.interpret("asdfgh").refusal_target                     # None
+matcher.interpret("write a poem about my kitchen lights") \
+    .refusal_target                                            # "the lights in Kitchen"
+```
 
 All response wording, action labels, device/domain labels, and target phrase
 templates live in `data/responses.yaml`. Supply `responses` (a dictionary or

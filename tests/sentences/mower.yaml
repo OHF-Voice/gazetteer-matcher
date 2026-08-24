@@ -6,24 +6,28 @@ cases:
     frames:
       - intent: HassLawnMowerStartMowing
         combination: default
+        response_key: default
         slots: {}
 
   - sentence: start mowing the lawn
     frames:
       - intent: HassLawnMowerStartMowing
         combination: default
+        response_key: default
         slots: {}
 
   - sentence: stop mowing
     frames:
       - intent: HassLawnMowerDock
         combination: default
+        response_key: default
         slots: {}
 
   - sentence: stop mowing the lawn
     frames:
       - intent: HassLawnMowerDock
         combination: default
+        response_key: default
         slots: {}
 
   - sentences:
@@ -32,10 +36,12 @@ cases:
     frames:
       - intent: HassLawnMowerStartMowing
         combination: name_only
+        response_key: default
         slots: {name: lawn_mower.clippy}
 
   - sentence: clippy stop mowing
     frames:
       - intent: HassLawnMowerDock
         combination: name_only
+        response_key: default
         slots: {name: lawn_mower.clippy}

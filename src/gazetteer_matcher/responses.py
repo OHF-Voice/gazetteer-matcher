@@ -118,6 +118,19 @@ class RejectionResponder:
         except KeyError:
             return ""
 
+    def target_phrase(
+        self,
+        spans: list[Span],
+        candidates: list[FrameCandidate] | None = None,
+    ) -> str | None:
+        """Return how a refusal would name what it was aimed at, if anything.
+
+        "The lights in Kitchen", "'Clippy' (a lawn mower)". None when nothing in the
+        home was resolved, which covers most refusals: noise resolves nothing, and a
+        caller with a better error message of its own should prefer that one.
+        """
+        return self._target_fields(spans, candidates or []).get("target") or None
+
     def render(
         self,
         code: str,

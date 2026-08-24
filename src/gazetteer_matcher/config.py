@@ -48,6 +48,16 @@ def _load_source(
     return _load_yaml(selected)
 
 
+def empty_home() -> ConfigData:
+    """Return a home with nothing in it, which resolves no names."""
+    return {"areas": {}, "floors": {}, "entities": {}}
+
+
+def load_home(home: ConfigSource | None) -> ConfigData:
+    """Load a home from a dictionary or a YAML path. See MatcherConfig.load."""
+    return _load_source(home, empty_home)
+
+
 def _load_intents(intents: ConfigData | None) -> ConfigData:
     if intents is not None:
         return intents
@@ -83,10 +93,7 @@ class MatcherConfig:
             vocabulary=_load_source(
                 vocabulary_source, partial(package_data_path, "vocabulary.yaml")
             ),
-            home=_load_source(
-                home_source,
-                lambda: {"areas": {}, "floors": {}, "entities": {}},
-            ),
+            home=load_home(home_source),
             intents=_load_intents(intents),
             responses=_load_source(
                 responses_source, partial(package_data_path, "responses.yaml")

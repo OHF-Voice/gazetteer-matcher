@@ -9,18 +9,21 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: cover
         slots: {name: cover.bedroom_blinds}
 
   - sentence: close the kitchen window
     frames:
       - intent: HassTurnOff
         combination: name_only
+        response_key: cover
         slots: {name: cover.kitchen_window}
 
   - sentence: open kitchen window
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: cover
         slots: {name: cover.kitchen_window}
 
   - sentence: which blinds are closed
@@ -36,4 +39,5 @@ cases:
     frames:
       - intent: HassSetPosition
         combination: name_only
+        response_key: default
         slots: {name: cover.bedroom_blinds, position: 50}

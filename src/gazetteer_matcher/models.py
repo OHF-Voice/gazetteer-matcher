@@ -1,10 +1,48 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 TargetScope = Literal["entity", "area", "floor", "home"]
 _TARGET_SLOTS = ("name", "area", "floor", "domain", "device_class")
+_SCOPE_REQUIRES = {"entity": "name", "area": "area", "floor": "floor"}
+
+
+class AreaSpec(TypedDict, total=False):
+    """One area of a home. ``floor`` is the id of the floor it is on."""
+
+    name: str
+    aliases: list[str]
+    floor: str | None
+
+
+class FloorSpec(TypedDict, total=False):
+    """One floor of a home."""
+
+    name: str
+    aliases: list[str]
+
+
+class EntitySpec(TypedDict, total=False):
+    """One entity of a home. ``area`` is an area id; the floor comes from that."""
+
+    name: str
+    aliases: list[str]
+    domain: str
+    area: str | None
+    device_class: str
+
+
+class Home(TypedDict, total=False):
+    """The gazetteer a matcher resolves names against, keyed by id throughout.
+
+    The ids are the caller's own -- frames come back carrying them, so whatever a
+    caller puts in is what it gets out and can act on.
+    """
+
+    areas: dict[str, AreaSpec]
+    floors: dict[str, FloorSpec]
+    entities: dict[str, EntitySpec]
 
 
 @dataclass(frozen=True)
@@ -48,10 +86,45 @@ class SlotOption:
 
 @dataclass(frozen=True)
 class TargetReference:
-    """Reusable target selector from a previous successful interpretation."""
+    """Reusable target selector from a previous successful interpretation.
+
+    Validated here rather than when it is handed back to ``interpret``, so a caller
+    building one from its own records is told at the point it got it wrong.
+    """
 
     slots: dict[str, Any]
     scope: TargetScope
+
+    def __post_init__(self) -> None:
+        slots = set(self.slots)
+        if not slots or not slots <= set(_TARGET_SLOTS):
+            raise ValueError(
+                f"target slots must be a non-empty subset of {list(_TARGET_SLOTS)}, "
+                f"got {sorted(slots)}"
+            )
+        if self.scope not in {"entity", "area", "floor", "home"}:
+            raise ValueError(f"unsupported target scope {self.scope!r}")
+
+        required = _SCOPE_REQUIRES.get(self.scope)
+        if required is not None and required not in slots:
+            raise ValueError(f"{self.scope!r} target requires a {required!r} slot")
+        if self.scope == "home" and slots & {"name", "area", "floor"}:
+            raise ValueError("home-scoped target cannot carry a local selector")
+
+    @classmethod
+    def for_entity(cls, entity_id: str, **slots: Any) -> TargetReference:
+        """A target naming one entity."""
+        return cls(slots={**slots, "name": entity_id}, scope="entity")
+
+    @classmethod
+    def for_area(cls, area_id: str, **slots: Any) -> TargetReference:
+        """A target scoped to an area, optionally narrowed by domain/device class."""
+        return cls(slots={**slots, "area": area_id}, scope="area")
+
+    @classmethod
+    def for_floor(cls, floor_id: str, **slots: Any) -> TargetReference:
+        """A target scoped to a floor, optionally narrowed by domain/device class."""
+        return cls(slots={**slots, "floor": floor_id}, scope="floor")
 
 
 @dataclass
@@ -110,6 +183,18 @@ class Interpretation:
     reason: str | None = None
     rejection_code: str | None = None
     response: str | None = None
+
+    refusal_target: str | None = None
+    """How ``response`` names what the refusal was aimed at, when it names anything.
+
+    A refusal that resolved something in the home explains itself -- "you're
+    targeting the lights in Kitchen, but I don't know what action to take" -- and is
+    worth saying. Most do not: noise resolves nothing, and "asdfgh" and "do
+    something" both come back as the same generic wording, which a caller with an
+    error message of its own should prefer. This is how to tell the two apart
+    without reading the lexical spans.
+    """
+
     segments: list[SegmentDebug] = field(default_factory=list)
 
     @property

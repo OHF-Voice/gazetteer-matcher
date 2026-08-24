@@ -8,6 +8,7 @@ cases:
     frames:
       - intent: HassClimateGetTemperature
         combination: default
+        response_key: default
         slots: {area: living_room}
 
   - sentence: how warm is it
@@ -15,6 +16,7 @@ cases:
     frames:
       - intent: HassClimateGetTemperature
         combination: default
+        response_key: default
         slots: {area: living_room}
 
   - sentences:
@@ -26,6 +28,7 @@ cases:
     frames:
       - intent: HassClimateGetTemperature
         combination: area_only
+        response_key: default
         slots: {area: living_room}
 
   - sentences:
@@ -36,4 +39,5 @@ cases:
     frames:
       - intent: HassClimateGetTemperature
         combination: name_only
+        response_key: default
         slots: {name: climate.ecobee}

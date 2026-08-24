@@ -7,12 +7,14 @@ cases:
     frames:
       - intent: HassGetCurrentTime
         combination: default
+        response_key: default
         slots: {}
 
   - sentence: what's the date
     frames:
       - intent: HassGetCurrentDate
         combination: default
+        response_key: default
         slots: {}
 
   - sentence: what is the outside temperature

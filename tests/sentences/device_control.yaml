@@ -5,18 +5,21 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: area_domain
+        response_key: lights_area
         slots: {area: kitchen, domain: light}
 
   - sentence: turn on the living room light
     frames:
       - intent: HassTurnOn
         combination: area_domain
+        response_key: lights_area
         slots: {area: living_room, domain: light}
 
   - sentence: turn on the ceiling lights in the living room
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: default
         slots: {name: light.living_room_ceiling}
 
   - sentences:
@@ -25,12 +28,14 @@ cases:
     frames:
       - intent: HassVacuumReturnToBase
         combination: name_only
+        response_key: default
         slots: {name: vacuum.rover}
 
   - sentence: turn off ceiling fan
     frames:
       - intent: HassTurnOff
         combination: name_only
+        response_key: default
         slots: {name: fan.bedroom}
 
   - sentence: please turn on the TV
@@ -38,6 +43,7 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: default
         slots: {name: media_player.living_room}
 
   - sentences:
@@ -46,6 +52,7 @@ cases:
     frames:
       - intent: HassTurnOn
         combination: name_only
+        response_key: lock
         slots: {name: lock.front_door}
 
   - sentences:
@@ -54,6 +61,7 @@ cases:
     frames:
       - intent: HassTurnOff
         combination: name_only
+        response_key: lock
         slots: {name: lock.front_door}
 
   - sentences:
@@ -80,16 +88,19 @@ cases:
     frames:
       - intent: HassFanSetSpeed
         combination: name_only
+        response_key: default
         slots: {name: fan.bedroom, percentage: 50}
 
   - sentence: set thermostat to 70°
     frames:
       - intent: HassClimateSetTemperature
         combination: name_temperature
+        response_key: default
         slots: {name: climate.ecobee, temperature: 70}
 
   - sentence: set Ecobee to seventy degrees
     frames:
       - intent: HassClimateSetTemperature
         combination: name_temperature
+        response_key: default
         slots: {name: climate.ecobee, temperature: 70}

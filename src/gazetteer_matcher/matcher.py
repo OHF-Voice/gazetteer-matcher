@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from itertools import product
 from typing import Any, Iterable, Sequence
 
-from .config import ConfigSource, MatcherConfig, normalize_tokens
+from .config import ConfigSource, MatcherConfig, load_home, normalize_tokens
 from .models import (
     FrameCandidate,
     Interpretation,
@@ -15,6 +15,7 @@ from .models import (
     TargetScope,
     Token,
 )
+from .response_keys import ResponseKeys, load_response_keys
 from .responses import RejectionResponder
 from .schemas import IntentCatalog, IntentCombination
 from .tagger import SpanTagger
@@ -63,6 +64,10 @@ _SHAREABLE_TAGS = {
 }
 
 
+_DISPLAY_COLLECTIONS = {"name": "entities", "area": "areas", "floor": "floors"}
+"""Slots holding a home id, and the collection to read the spoken name from."""
+
+
 class GazetteerMatcher:
     """MVP span tagger + constraint matcher for Home Assistant intents."""
 
@@ -73,6 +78,7 @@ class GazetteerMatcher:
         home: ConfigSource | None = None,
         intents: dict[str, Any] | None = None,
         responses: ConfigSource | None = None,
+        response_keys: ResponseKeys | None = None,
         vocabulary_path: ConfigSource | None = None,
         home_path: ConfigSource | None = None,
         responses_path: ConfigSource | None = None,
@@ -93,11 +99,7 @@ class GazetteerMatcher:
                 self.global_scope_domains.setdefault(combo.intent, set()).update(
                     combo.inferred_domains
                 )
-        self.tagger = SpanTagger(self.config)
-        self.responder = RejectionResponder(
-            self.config.responses,
-            self.config.home,
-        )
+        self._build_home()
         self.actions: dict[str, dict[str, Any]] = (
             self.config.vocabulary.get("actions") or {}
         )
@@ -108,6 +110,11 @@ class GazetteerMatcher:
         )
         self.response_hints: dict[str, dict[str, Any]] = (
             self.config.vocabulary.get("response_hints") or {}
+        )
+        self.response_keys = (
+            response_keys
+            if response_keys is not None
+            else load_response_keys(str(self.config.vocabulary["language"]))
         )
         acceptance = self.config.vocabulary.get("acceptance") or {}
         legacy_max_unexplained = acceptance.get("max_unexplained_content_tokens")
@@ -123,6 +130,39 @@ class GazetteerMatcher:
                 legacy_max_unexplained if legacy_max_unexplained is not None else 2,
             )
         )
+
+    def set_home(self, home: ConfigSource) -> None:
+        """Replace the gazetteer of areas, floors and entities to resolve against.
+
+        Only the span tagger and the rejection wording depend on the home, so this
+        rebuilds those two and leaves the vocabulary, intent catalog and number words
+        alone. An application whose home changes while it runs should call this rather
+        than construct a new matcher, which would re-read the data files.
+
+        Interpretations in flight keep the tagger they started with. Callers that
+        interpret from several threads should serialize this against them.
+        """
+        self.config.home = load_home(home)
+        self._build_home()
+
+    def _build_home(self) -> None:
+        """(Re)build everything that depends on the home."""
+        self.tagger = SpanTagger(self.config)
+        self.responder = RejectionResponder(self.config.responses, self.config.home)
+
+    def display_name(self, slot: str, value: Any) -> str:
+        """Return what a person would call a resolved slot value.
+
+        Frames carry the ids the caller gave in the home -- ``name`` an entity id,
+        ``area`` and ``floor`` theirs -- because those are what an application acts
+        on. This is the other direction, for saying back what was acted on.
+        Anything that is not a home reference is returned unchanged.
+        """
+        collection = _DISPLAY_COLLECTIONS.get(slot)
+        if collection is None:
+            return str(value)
+        spec = (self.config.home.get(collection) or {}).get(str(value)) or {}
+        return str(spec.get("name") or value)
 
     def _resolve_home_context(
         self,
@@ -1208,7 +1248,9 @@ class GazetteerMatcher:
             target_scope=self._selection_target_scope(combo, slot_values),
             violations=violations,
             cost=cost,
-            response_key=self._response_key(intent, combo.name, local_spans),
+            response_key=self._response_key(
+                intent, combo.name, local_spans, slot_values
+            ),
         )
 
     def _response_key(
@@ -1216,13 +1258,15 @@ class GazetteerMatcher:
         intent: str,
         combination: str,
         local_spans: list[Span],
+        slots: dict[str, Any],
     ) -> str | None:
-        """Return an utterance hint for a successful response template.
+        """Return the response key a successful frame should be answered with.
 
         Lexical hints take precedence over combination defaults because query
         wording such as ``which`` can be meaningful even when a home alias
         makes the selected target more specific than the upstream sentence
-        shape normally would be.
+        shape normally would be. Both are configured wording, so both come
+        before the corpus, which knows the shape but not what was said.
         """
         spec = self.response_hints.get(intent) or {}
         keys = {
@@ -1234,8 +1278,31 @@ class GazetteerMatcher:
             return next(iter(keys))
         if len(keys) > 1:
             return None
+
         default = (spec.get("defaults") or {}).get(combination)
-        return str(default) if default else None
+        if default:
+            return str(default)
+
+        return self.response_keys.key_for(
+            intent, combination, self.target_domain(slots)
+        )
+
+    def target_domain(self, slots: dict[str, Any]) -> str | None:
+        """Return what a frame's slots act on, or None when that is not one thing.
+
+        A named target's own domain is the more specific answer, so it beats the
+        ``domain`` slot; that slot holding several is no answer at all.
+        """
+        if entity_id := slots.get("name"):
+            entity = (self.config.home.get("entities") or {}).get(str(entity_id)) or {}
+            if domain := entity.get("domain"):
+                return str(domain)
+            return str(entity_id).split(".", maxsplit=1)[0]
+
+        domain = slots.get("domain")
+        if isinstance(domain, (list, tuple, set)):
+            return str(next(iter(domain))) if len(domain) == 1 else None
+        return str(domain) if domain else None
 
     @staticmethod
     def _selection_target_scope(
@@ -1417,6 +1484,7 @@ class GazetteerMatcher:
                 candidates=active.frame_candidates,
                 actions=active.action_candidates,
             ),
+            refusal_target=self.responder.target_phrase(spans, active.frame_candidates),
             segments=segments,
         )
 
@@ -1540,31 +1608,10 @@ class GazetteerMatcher:
         previous_targets: Sequence[TargetReference] | None,
     ) -> tuple[TargetReference, ...]:
         targets = tuple(previous_targets or ())
-        allowed_slots = {"name", "area", "floor", "domain", "device_class"}
-        required_by_scope = {
-            "entity": "name",
-            "area": "area",
-            "floor": "floor",
-        }
         for target in targets:
             if not isinstance(target, TargetReference):
                 raise TypeError("previous_targets must contain TargetReference values")
-            slots = set(target.slots)
-            if not slots or not slots <= allowed_slots:
-                raise ValueError("previous target has unsupported slots")
-            if target.scope not in {"entity", "area", "floor", "home"}:
-                raise ValueError(
-                    f"previous target has unsupported scope {target.scope!r}"
-                )
-            required = required_by_scope.get(target.scope)
-            if required is not None and required not in slots:
-                raise ValueError(
-                    f"previous target scope {target.scope!r} requires {required!r}"
-                )
-            if target.scope == "home" and slots & {"name", "area", "floor"}:
-                raise ValueError(
-                    "home-scoped previous target cannot contain a local selector"
-                )
+        # The rest was checked when each target was constructed.
         return targets
 
     def _resolve_anaphora(

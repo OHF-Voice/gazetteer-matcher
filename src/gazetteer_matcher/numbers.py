@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass, field
 
 from unicode_rbnf import FormatPurpose, RbnfEngine
@@ -14,8 +15,46 @@ class TrieNode:
     values: list[tuple[int, str]] = field(default_factory=list)
 
 
+@functools.lru_cache(maxsize=8)
+def _shared_trie(
+    language: str,
+    max_cardinal: int,
+    max_ordinal: int,
+    joiners: tuple[str, ...],
+) -> NumberWordTrie:
+    """Build a trie once per distinct settings tuple. See NumberWordTrie.shared."""
+    return NumberWordTrie(
+        language,
+        max_cardinal=max_cardinal,
+        max_ordinal=max_ordinal,
+        joiners=list(joiners),
+    )
+
+
 class NumberWordTrie:
-    """Parse number words by reversing Unicode CLDR RBNF output into a trie."""
+    """Parse number words by reversing Unicode CLDR RBNF output into a trie.
+
+    Building one asks RBNF to spell every number up to the configured maxima, which
+    is by far the most expensive thing in this package and depends only on the
+    language and those maxima. Use :meth:`shared` unless a private copy is wanted.
+    """
+
+    @classmethod
+    def shared(
+        cls,
+        language: str,
+        *,
+        max_cardinal: int,
+        max_ordinal: int,
+        joiners: list[str] | None = None,
+    ) -> NumberWordTrie:
+        """Return a cached trie for these settings, building it on first use.
+
+        The trie is read-only once built, so every matcher for a language can share
+        one. That matters to callers that rebuild a matcher when their home changes:
+        without this, swapping the gazetteer re-spells every number in the language.
+        """
+        return _shared_trie(language, max_cardinal, max_ordinal, tuple(joiners or ()))
 
     def __init__(
         self,

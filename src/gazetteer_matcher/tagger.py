@@ -23,7 +23,7 @@ class SpanTagger:
         self.config = config
         vocab = config.vocabulary
         number_cfg = vocab.get("numbers", {})
-        self.number_trie = NumberWordTrie(
+        self.number_trie = NumberWordTrie.shared(
             str(vocab["language"]),
             max_cardinal=int(number_cfg.get("max_cardinal", 10000)),
             max_ordinal=int(number_cfg.get("max_ordinal", 100)),

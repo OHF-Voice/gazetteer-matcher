@@ -478,6 +478,12 @@ templates fall back to its `generic` response.
 This makes CLDR/RBNF the number-word vocabulary source without embedding a
 second English number lexicon in Python.
 
+Step 1 spells tens of thousands of numbers and dominates the cost of building a
+matcher. The trie depends only on the language and the maxima, and is read-only
+once built, so it is cached and shared by every matcher that wants the same one.
+This matters to applications that rebuild a matcher when their home changes:
+without sharing, renaming one entity re-spells every number in the language.
+
 The configured number joiner (`and` for English) can be skipped *inside an
 otherwise valid longer number*. This lets:
 

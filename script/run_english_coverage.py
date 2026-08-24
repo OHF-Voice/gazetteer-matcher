@@ -10,26 +10,25 @@ Files whose slot combination declares ``wildcard_slots`` are excluded.
 from __future__ import annotations
 
 import argparse
+import json
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-import json
 from pathlib import Path
-import sys
 from tempfile import TemporaryDirectory
 from typing import Any, Iterable
 
 import yaml
-
+from home_assistant_intents import get_intent_info
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+# pylint: disable=wrong-import-position
 from gazetteer_matcher import GazetteerMatcher  # noqa: E402
 
-
-DEFAULT_TESTS_DIR = Path.home() / "opt" / "intent-sentences" / "tests"
 DEFAULT_HASSIL_DIR = Path.home() / "opt" / "hassil"
 
 
@@ -40,6 +39,7 @@ class SentenceCase:
     combination: str
     sentence: str
     expected_slots: dict[str, Any]
+    context_area: str | None = None
 
 
 @dataclass(frozen=True)
@@ -98,30 +98,35 @@ def load_cases(
         if intent_filter is not None and intent not in intent_filter:
             continue
         combination = path.stem
-        combo_info = (
-            ((intents.get(intent) or {}).get("slot_combinations") or {}).get(
-                combination
-            )
+        combo_info = ((intents.get(intent) or {}).get("slot_combinations") or {}).get(
+            combination
         )
         if combo_info is None:
             raise ValueError(
-                f"No intents.yaml combination for {intent}.{combination} ({path})"
+                f"No intent metadata combination for "
+                f"{intent}.{combination} ({path})"
             )
 
         test_doc = _load_yaml(path)
         test_groups = test_doc.get("tests") or []
-        sentence_count = sum(
-            len(group.get("sentences") or []) for group in test_groups
-        )
+        sentence_count = sum(len(group.get("sentences") or []) for group in test_groups)
         if combo_info.get("wildcard_slots"):
             excluded_files += 1
             excluded_sentences += sentence_count
             continue
 
         fixture_docs.append(test_doc)
-        inferred_domains = _flatten_grouped_values(
-            combo_info.get("inferred_domains")
-        )
+        context_area: str | None = None
+        if combo_info.get("context_area"):
+            context_area = next(
+                (
+                    str(area["name"])
+                    for area in test_doc.get("areas") or []
+                    if area.get("context_area")
+                ),
+                "__context_area__",
+            )
+        inferred_domains = _flatten_grouped_values(combo_info.get("inferred_domains"))
         for group in test_groups:
             expected_slots = dict(group.get("slots") or {})
             if inferred_domains:
@@ -136,6 +141,7 @@ def load_cases(
                         combination=combination,
                         sentence=str(sentence),
                         expected_slots=expected_slots,
+                        context_area=context_area,
                     )
                 )
 
@@ -232,7 +238,11 @@ def filter_speech_to_phrase_cases(
     if str(hassil_root) not in sys.path:
         sys.path.insert(0, str(hassil_root))
     try:
-        from hassil import Intents, TextSlotList, recognize_best
+        from hassil import (  # type: ignore[import-not-found]
+            Intents,
+            TextSlotList,
+            recognize_best,
+        )
     except ImportError as err:
         raise RuntimeError(f"Unable to import HassIL from {hassil_root}") from err
 
@@ -349,12 +359,9 @@ def filter_speech_to_phrase_cases(
         ):
             continue
         actual_slots = {
-            entity_name: entity.value
-            for entity_name, entity in result.entities.items()
+            entity_name: entity.value for entity_name, entity in result.entities.items()
         }
-        combo_info = intents_schema[case.intent]["slot_combinations"][
-            case.combination
-        ]
+        combo_info = intents_schema[case.intent]["slot_combinations"][case.combination]
         if combo_info.get("context_area"):
             actual_slots.pop("area", None)
         if _slots_match(actual_slots, case.expected_slots):
@@ -396,7 +403,10 @@ def run_case(
     matcher: GazetteerMatcher, case: SentenceCase, home: dict[str, Any]
 ) -> CaseResult:
     expected_slots = canonical_expected_slots(case.expected_slots, home)
-    result = matcher.interpret(case.sentence)
+    result = matcher.interpret(
+        case.sentence,
+        context_area=case.context_area,
+    )
     if not result.accepted:
         status = "ambiguous" if result.ambiguous else "rejected"
         return CaseResult(case, status, result.reason or status)
@@ -412,11 +422,14 @@ def run_case(
             "wrong_combination",
             f"got {frame.intent}.{frame.combination}",
         )
-    if not _slots_match(frame.slots, expected_slots):
+    actual_slots = dict(frame.slots)
+    if case.context_area is not None:
+        actual_slots.pop("area", None)
+    if not _slots_match(actual_slots, expected_slots):
         return CaseResult(
             case,
             "wrong_slots",
-            f"expected {expected_slots!r}, got {frame.slots!r}",
+            f"expected {expected_slots!r}, got {actual_slots!r}",
         )
     return CaseResult(case, "covered", "")
 
@@ -450,9 +463,7 @@ def make_report(
                     "name": name,
                     "covered": row_covered,
                     "total": row_total,
-                    "coverage_percent": round(
-                        _percent(row_covered, row_total), 2
-                    ),
+                    "coverage_percent": round(_percent(row_covered, row_total), 2),
                 }
             )
         return output
@@ -521,7 +532,13 @@ def render_text(
     for status, count in summary["statuses"].items():
         lines.append(f"  {status:<18} {count:>5}")
 
-    lines.extend(["", "Coverage by intent:", "  intent                              covered   total    coverage"])
+    lines.extend(
+        [
+            "",
+            "Coverage by intent:",
+            "  intent                              covered   total    coverage",
+        ]
+    )
     for row in report["by_intent"]:
         lines.append(
             f"  {row['name']:<35} {row['covered']:>7} "
@@ -535,9 +552,7 @@ def render_text(
         english_dir = tests_dir / "en"
         for result in shown:
             path = result.case.path.relative_to(english_dir)
-            lines.append(
-                f"  [{result.status}] {path}: {result.case.sentence!r}"
-            )
+            lines.append(f"  [{result.status}] {path}: {result.case.sentence!r}")
             lines.append(f"    {result.detail}")
 
     return "\n".join(lines)
@@ -545,20 +560,13 @@ def render_text(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Measure matcher coverage of non-wildcard English fallback tests."
-        )
+        description=("Measure matcher coverage of non-wildcard English fallback tests.")
     )
     parser.add_argument(
         "--tests-dir",
         type=Path,
-        default=DEFAULT_TESTS_DIR,
-        help="intent-sentences tests directory (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--intents",
-        type=Path,
-        help="intents.yaml path (default: sibling of --tests-dir)",
+        required=True,
+        help="intent-sentences tests directory",
     )
     parser.add_argument(
         "--intent",
@@ -614,12 +622,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     tests_dir = args.tests_dir.expanduser().resolve()
-    intents_path = (
-        args.intents.expanduser().resolve()
-        if args.intents
-        else tests_dir.parent / "intents.yaml"
-    )
-    intents = _load_yaml(intents_path)
+    intents = get_intent_info()
+    if intents is None:
+        raise RuntimeError("home-assistant-intents package metadata is unavailable")
     intent_filter = set(args.intent) or None
     if intent_filter is not None:
         unknown_intents = sorted(intent_filter - intents.keys())
@@ -644,9 +649,7 @@ def main(argv: list[str] | None = None) -> int:
             cases = speech_to_phrase_cases
             selection_mode = "speech_to_phrase"
         else:
-            speech_to_phrase_case_ids = {
-                id(case) for case in speech_to_phrase_cases
-            }
+            speech_to_phrase_case_ids = {id(case) for case in speech_to_phrase_cases}
             cases = [
                 case for case in cases if id(case) not in speech_to_phrase_case_ids
             ]
@@ -654,6 +657,14 @@ def main(argv: list[str] | None = None) -> int:
         selected_paths = {case.path for case in cases}
         fixtures = [_load_yaml(path) for path in sorted(selected_paths)]
     home = build_home(fixtures)
+    for case in cases:
+        if case.context_area is None:
+            continue
+        area_id = _slug(case.context_area)
+        home["areas"].setdefault(
+            area_id,
+            {"name": case.context_area, "aliases": []},
+        )
 
     with TemporaryDirectory(prefix="gazetteer-coverage-") as temp_dir:
         home_path = Path(temp_dir) / "home.yaml"
@@ -661,7 +672,7 @@ def main(argv: list[str] | None = None) -> int:
             yaml.safe_dump(home, file_obj, sort_keys=True)
         matcher = GazetteerMatcher(
             home_path=home_path,
-            intents_path=intents_path,
+            intents=intents,
         )
         results = [run_case(matcher, case, home) for case in cases]
 

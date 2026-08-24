@@ -1,0 +1,103 @@
+language: en
+
+# Representative state cardinalities and scopes from the English
+# intent-sentences tests. The matcher extracts query semantics; response
+# cardinality is handled downstream by Home Assistant.
+cases:
+  - sentence: are any lights on
+    frames:
+      - intent: HassGetState
+        combination: domain_state
+        slots: {domain: light, state: "on"}
+
+  - sentence: please are any lights on
+    frames:
+      - intent: HassGetState
+        combination: domain_state
+        slots: {domain: light, state: "on"}
+
+  - sentence: are all the lights off
+    frames:
+      - intent: HassGetState
+        combination: domain_state
+        slots: {domain: light, state: "off"}
+
+  - sentence: which lights are on
+    frames:
+      - intent: HassGetState
+        combination: domain_state
+        slots: {domain: light, state: "on"}
+
+  - sentence: how many lights are on
+    frames:
+      - intent: HassGetState
+        combination: domain_state
+        slots: {domain: light, state: "on"}
+
+  - sentence: are any kitchen lights on
+    frames:
+      - intent: HassGetState
+        combination: domain_state_area
+        slots: {area: kitchen, domain: light, state: "on"}
+
+  - sentence: which lights are on in the kitchen
+    frames:
+      - intent: HassGetState
+        combination: domain_state_area
+        slots: {area: kitchen, domain: light, state: "on"}
+
+  - sentence: which windows are open
+    frames:
+      - intent: HassGetState
+        combination: device_class_state
+        slots: {domain: cover, device_class: window, state: open}
+
+  - sentence: are any upstairs windows open
+    frames:
+      - intent: HassGetState
+        combination: device_class_state_floor
+        slots:
+          {floor: upstairs, domain: cover, device_class: window, state: open}
+
+  - sentence: which windows are open on the second floor
+    frames:
+      - intent: HassGetState
+        combination: device_class_state_floor
+        slots:
+          {floor: upstairs, domain: cover, device_class: window, state: open}
+
+  - sentence: are any lights on upstairs
+    frames:
+      - intent: HassGetState
+        combination: domain_state_floor
+        slots: {floor: upstairs, domain: light, state: "on"}
+
+  - sentence: which upstairs lights are on
+    frames:
+      - intent: HassGetState
+        combination: domain_state_floor
+        slots: {floor: upstairs, domain: light, state: "on"}
+
+  - sentence: please tell me the outside temperature
+    frames:
+      - intent: HassGetState
+        combination: name_only
+        slots: {name: sensor.outside_temperature}
+
+  - sentence: how is the outside temperature
+    frames:
+      - intent: HassGetState
+        combination: name_only
+        slots: {name: sensor.outside_temperature}
+
+  - sentence: where is jane
+    frames:
+      - intent: HassGetState
+        combination: name_where
+        slots: {name: person.jane}
+
+  - sentence: is jane home
+    frames:
+      - intent: HassGetState
+        combination: name_zone
+        slots: {name: person.jane, state: home}

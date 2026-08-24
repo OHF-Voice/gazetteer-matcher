@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from typing import Any
 
 from .models import FrameCandidate, Interpretation, Span, Token
@@ -14,9 +14,15 @@ def _value(value: Any) -> str:
 
 
 def render_tokens(tokens: list[Token]) -> str:
-    lines = ["TOKENS", "idx  text                 chars", "---  -------------------  ---------"]
+    lines = [
+        "TOKENS",
+        "idx  text                 chars",
+        "---  -------------------  ---------",
+    ]
     for token in tokens:
-        lines.append(f"{token.index:>3}  {token.text:<19}  {token.start_char}:{token.end_char}")
+        lines.append(
+            f"{token.index:>3}  {token.text:<19}  {token.start_char}:{token.end_char}"
+        )
     return "\n".join(lines)
 
 
@@ -38,7 +44,9 @@ def render_spans(spans: list[Span]) -> str:
 
 
 def render_candidate(candidate: FrameCandidate, tokens: list[Token]) -> str:
-    inherited = [slot for slot, option in candidate.slot_options.items() if option.inherited]
+    inherited = [
+        slot for slot, option in candidate.slot_options.items() if option.inherited
+    ]
     lines = [
         f"{candidate.intent}.{candidate.combination} action={candidate.action!r} cost={candidate.cost}",
         f"  slots={candidate.slots}",
@@ -74,7 +82,9 @@ def render_interpretation(result: Interpretation, *, candidate_limit: int = 12) 
         segment_text = " ".join(
             token.raw for token in result.tokens[segment.start : segment.end]
         )
-        lines.append(f"SEGMENT {index} [{segment.start}:{segment.end}] {segment_text!r}")
+        lines.append(
+            f"SEGMENT {index} [{segment.start}:{segment.end}] {segment_text!r}"
+        )
         lines.append(
             "  actions: "
             + ", ".join(
@@ -84,7 +94,9 @@ def render_interpretation(result: Interpretation, *, candidate_limit: int = 12) 
         )
         lines.append("  candidates:")
         for candidate in segment.frame_candidates[:candidate_limit]:
-            rendered = render_candidate(candidate, result.tokens).replace("\n", "\n    ")
+            rendered = render_candidate(candidate, result.tokens).replace(
+                "\n", "\n    "
+            )
             lines.append("    " + rendered)
         if len(segment.frame_candidates) > candidate_limit:
             lines.append(
@@ -92,7 +104,12 @@ def render_interpretation(result: Interpretation, *, candidate_limit: int = 12) 
             )
         if segment.chosen:
             lines.append("  CHOSEN:")
-            lines.append("    " + render_candidate(segment.chosen, result.tokens).replace("\n", "\n    "))
+            lines.append(
+                "    "
+                + render_candidate(segment.chosen, result.tokens).replace(
+                    "\n", "\n    "
+                )
+            )
         elif segment.rejection_reason:
             lines.append(f"  REJECTED: {segment.rejection_reason}")
         lines.append("")
@@ -115,7 +132,9 @@ def render_interpretation(result: Interpretation, *, candidate_limit: int = 12) 
     return "\n".join(lines)
 
 
-def interpretation_to_dict(result: Interpretation, *, include_candidates: bool = False) -> dict[str, Any]:
+def interpretation_to_dict(
+    result: Interpretation, *, include_candidates: bool = False
+) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "text": result.text,
         "accepted": result.accepted,

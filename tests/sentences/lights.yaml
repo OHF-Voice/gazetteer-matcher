@@ -1,0 +1,97 @@
+language: en
+
+# Adapted from Home Assistant's built-in sentence starter pack:
+# https://www.home-assistant.io/voice_control/builtin_sentences
+cases:
+  - sentence: flick on the kichen lights
+    frames:
+      - intent: HassTurnOn
+        combination: area_domain
+        slots: {area: kitchen, domain: light}
+
+  - sentence: turn on the bedroom lamp
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: light.bedroom_lamp}
+
+  - sentence: change kitchen lights brightness to 50%
+    frames:
+      - intent: HassLightSet
+        combination: area_brightness
+        slots: {area: kitchen, brightness: 50, domain: light}
+
+  - sentence: set bedroom lamp to green
+    frames:
+      - intent: HassLightSet
+        combination: name_color
+        slots: {name: light.bedroom_lamp, color: green}
+
+  - sentence: set bedroom lamp brightness to 50%
+    frames:
+      - intent: HassLightSet
+        combination: name_brightness
+        slots: {name: light.bedroom_lamp, brightness: 50}
+
+  - sentence: set living room brightness to 50%
+    frames:
+      - intent: HassLightSet
+        combination: area_brightness
+        slots: {area: living_room, brightness: 50, domain: light}
+
+  - sentence: set brightness to 50%
+    context_area: Living Room
+    frames:
+      - intent: HassLightSet
+        combination: brightness_only
+        slots: {area: living_room, brightness: 50, domain: light}
+
+  - sentence: set kitchen lights to red
+    frames:
+      - intent: HassLightSet
+        combination: area_color
+        slots: {area: kitchen, color: red, domain: light}
+
+  - sentence: set lights to red
+    context_area: Living Room
+    frames:
+      - intent: HassLightSet
+        combination: color_only
+        slots: {area: living_room, color: red, domain: light}
+
+  - sentence: turn on the lights in the living room
+    frames:
+      - intent: HassTurnOn
+        combination: area_domain
+        slots: {area: living_room, domain: light}
+
+  - sentence: turn off the lights
+    context_area: Kitchen
+    frames:
+      - intent: HassTurnOff
+        combination: domain_only
+        slots: {area: kitchen, domain: light}
+
+  - sentence: turn all lights off
+    frames:
+      - intent: HassTurnOff
+        combination: domain_all
+        slots: {domain: light}
+
+  - sentence: turn on the kitchen and hallway lights
+    frames:
+      - intent: HassTurnOn
+        combination: area_domain
+        slots: {area: kitchen, domain: light}
+      - intent: HassTurnOn
+        combination: area_domain
+        slots: {area: hallway, domain: light}
+
+  - sentence: turn on the hallway light and set its brightness to 40%
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: light.hallway}
+      - intent: HassLightSet
+        combination: name_brightness
+        slots: {name: light.hallway, brightness: 40}

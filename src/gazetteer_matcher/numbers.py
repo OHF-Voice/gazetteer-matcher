@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from functools import lru_cache
-from typing import Any
 
 from unicode_rbnf import FormatPurpose, RbnfEngine
 
@@ -89,8 +87,8 @@ class NumberWordTrie:
             best: list[tuple[int, int, str]] = []
             advanced = False
             while index < len(tokens):
-                token = tokens[index].text
-                child = node.children.get(token)
+                token_text = tokens[index].text
+                child = node.children.get(token_text)
                 if child is not None:
                     node = child
                     advanced = True
@@ -100,7 +98,7 @@ class NumberWordTrie:
                     continue
 
                 # Permit configured joiners *inside* a valid longer number.
-                if advanced and token in self.joiners:
+                if advanced and token_text in self.joiners:
                     index += 1
                     continue
                 break
@@ -120,9 +118,7 @@ class NumberWordTrie:
 
         # CLDR only supplies integer cardinal forms. Compose the common spoken
         # decimal form ("twenty point five") from two cardinal spans.
-        integer_spans = [
-            span for span in spans if span.meta.get("kind") == "cardinal"
-        ]
+        integer_spans = [span for span in spans if span.meta.get("kind") == "cardinal"]
         by_start: dict[int, list[Span]] = {}
         for span in integer_spans:
             by_start.setdefault(span.start, []).append(span)
@@ -142,7 +138,9 @@ class NumberWordTrie:
                         end=right.end,
                         tag="number",
                         value=decimal,
-                        text=" ".join(token.raw for token in tokens[left.start : right.end]),
+                        text=" ".join(
+                            token.raw for token in tokens[left.start : right.end]
+                        ),
                         source="composed_decimal",
                         meta={"kind": "cardinal"},
                     )
@@ -152,5 +150,9 @@ class NumberWordTrie:
         # alternatives remain useful only when they represent a different value.
         unique: dict[tuple[int, int, str, str], Span] = {}
         for span in spans:
-            unique[(span.start, span.end, repr(span.value), span.meta.get("kind", ""))] = span
-        return sorted(unique.values(), key=lambda span: (span.start, -span.length, span.value))
+            unique[
+                (span.start, span.end, repr(span.value), span.meta.get("kind", ""))
+            ] = span
+        return sorted(
+            unique.values(), key=lambda span: (span.start, -span.length, span.value)
+        )

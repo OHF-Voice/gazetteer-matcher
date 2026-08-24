@@ -1,0 +1,76 @@
+language: en
+
+# Adapted from Home Assistant's built-in sentence starter pack:
+# https://www.home-assistant.io/voice_control/builtin_sentences
+cases:
+  - sentence: turn on the kitchen lights
+    frames:
+      - intent: HassTurnOn
+        combination: area_domain
+        slots: {area: kitchen, domain: light}
+
+  - sentence: turn on the living room light
+    frames:
+      - intent: HassTurnOn
+        combination: area_domain
+        slots: {area: living_room, domain: light}
+
+  - sentence: turn on the ceiling lights in the living room
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: light.living_room_ceiling}
+
+  - sentence: return rover to base
+    frames:
+      - intent: HassVacuumReturnToBase
+        combination: name_only
+        slots: {name: vacuum.rover}
+
+  - sentence: turn off ceiling fan
+    frames:
+      - intent: HassTurnOff
+        combination: name_only
+        slots: {name: fan.bedroom}
+
+  - sentence: please turn on the TV
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: could you lock the front door
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: lock.front_door}
+
+  - sentence: unlock the front door
+    frames:
+      - intent: HassTurnOff
+        combination: name_only
+        slots: {name: lock.front_door}
+
+  - sentence: is the front door locked
+    frames:
+      - intent: HassGetState
+        combination: name_state
+        slots: {name: lock.front_door, state: locked}
+
+  - sentence: which doors would you say are unlocked
+    frames:
+      - intent: HassGetState
+        combination: domain_state
+        slots: {domain: lock, state: unlocked}
+
+  - sentence: set bedroom fan speed to 50%
+    frames:
+      - intent: HassFanSetSpeed
+        combination: name_only
+        slots: {name: fan.bedroom, percentage: 50}
+
+  - sentence: set thermostat to 70 degrees
+    frames:
+      - intent: HassClimateSetTemperature
+        combination: name_temperature
+        slots: {name: climate.ecobee, temperature: 70}

@@ -1,5 +1,5 @@
-# Example Home Assistant gazetteer. Replace this with data exported from a
-# real HA instance. All names and aliases are deliberately external to code.
+# Home Assistant gazetteer fixture used by the test suite and examples.
+# All names and aliases are deliberately external to matcher code.
 areas:
   kitchen:
     name: Kitchen
@@ -83,10 +83,34 @@ entities:
     floor: ground
   media_player.living_room:
     name: Living Room Speakers
-    aliases: [living room speakers, sonos, stereo]
+    aliases: [living room speakers, sonos, stereo, tv, television]
     domain: media_player
     area: living_room
     floor: ground
+  script.stealth_mode:
+    name: Stealth Mode
+    aliases: [stealth mode, stealth mode script]
+    domain: script
+    area: null
+    floor: null
+  scene.kitchen_dinner:
+    name: Kitchen Dinner Scene
+    aliases: [dinner scene, kitchen dinner scene]
+    domain: scene
+    area: kitchen
+    floor: ground
+  weather.london:
+    name: London
+    aliases: [london weather]
+    domain: weather
+    area: null
+    floor: null
+  person.jane:
+    name: Jane
+    aliases: [jane]
+    domain: person
+    area: null
+    floor: null
   vacuum.rover:
     name: Rover
     aliases: [rover, robot vacuum]

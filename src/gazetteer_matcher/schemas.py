@@ -48,7 +48,9 @@ class IntentCatalog:
                     slots=tuple(combo.get("slots") or ()),
                     wildcard_slots=tuple(combo.get("wildcard_slots") or ()),
                     context_area=combo.get("context_area"),
-                    inferred_domains=_flatten_grouped_values(combo.get("inferred_domains")),
+                    inferred_domains=_flatten_grouped_values(
+                        combo.get("inferred_domains")
+                    ),
                     name_domains=_flatten_grouped_values(combo.get("name_domains")),
                     importance=combo.get("importance"),
                     example=combo.get("example"),
@@ -61,7 +63,9 @@ class IntentCatalog:
         value = spec.get("domain")
         return str(value) if value else None
 
-    def combinations(self, intent: str, *, include_wildcard: bool = False) -> list[IntentCombination]:
+    def combinations(
+        self, intent: str, *, include_wildcard: bool = False
+    ) -> list[IntentCombination]:
         combos = self.by_intent.get(intent, [])
         if include_wildcard:
             return list(combos)
@@ -71,7 +75,13 @@ class IntentCatalog:
         nonwild = [combo for combo in self.all if not combo.is_wildcard]
         wildcard = [combo for combo in self.all if combo.is_wildcard]
         reachable = [combo for combo in nonwild if combo.intent in configured_intents]
-        missing = sorted({combo.intent for combo in nonwild if combo.intent not in configured_intents})
+        missing = sorted(
+            {
+                combo.intent
+                for combo in nonwild
+                if combo.intent not in configured_intents
+            }
+        )
         return {
             "total_combinations": len(self.all),
             "wildcard_combinations_excluded": len(wildcard),

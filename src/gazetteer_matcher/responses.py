@@ -4,7 +4,6 @@ from typing import Any, Iterable
 
 from .models import FrameCandidate, Span
 
-
 _TARGET_SLOTS = ("name", "area", "floor", "domain", "device_class")
 
 
@@ -67,9 +66,7 @@ class RejectionResponder:
         domain = str(slots["domain"]) if "domain" in slots else None
         if entity is not None:
             entity_id = str(slots["name"])
-            domain = str(
-                entity.get("domain") or entity_id.split(".", 1)[0]
-            )
+            domain = str(entity.get("domain") or entity_id.split(".", 1)[0])
 
         domain_labels = self.responses.get("domains") or {}
         if domain is not None:
@@ -140,13 +137,13 @@ class RejectionResponder:
             action_labels_key = (
                 "action_attempts" if code == "missing_target" else "actions"
             )
-            action_label = (self.responses.get(action_labels_key) or {}).get(
-                action_key
-            )
+            action_label = (self.responses.get(action_labels_key) or {}).get(action_key)
             if action_label:
                 fields["action"] = str(action_label)
 
-        pronoun = self._unique_span(spans, "anaphor")
+        pronoun = self._unique_span(spans, "anaphor") or self._unique_span(
+            spans, "coordination_reference"
+        )
         if pronoun is not None:
             fields["pronoun"] = pronoun.text
 

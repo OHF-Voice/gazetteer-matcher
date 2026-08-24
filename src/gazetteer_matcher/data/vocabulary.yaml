@@ -26,7 +26,13 @@ anaphora:
     singular: [it]
     plural: [them]
   modifiers: [back, again]
-  actions: [turn_on, turn_off, open, close]
+  actions: [turn_on, turn_off, open, close, lock, unlock]
+
+# Possessives link a coordinated clause to the target of the immediately
+# preceding clause. Keep these separate from conversational follow-ups, which
+# require previous_targets from the caller.
+coordination_references:
+  singular: [its]
 
 skip_phrases:
   - the
@@ -117,8 +123,6 @@ domains:
   lawn_mower: [mower, mowers, lawn mower, lawn mowers]
   sensor: [sensor, sensors]
   binary_sensor: [binary sensor, binary sensors]
-  scene: [scene, scenes]
-  script: [script, scripts]
   input_boolean: [input boolean, input booleans]
   person: [person, persons, people, anyone, anybody, everyone, everybody, who]
 
@@ -194,7 +198,7 @@ temperature_values:
   6500: [daylight, day light]
 
 # Virtual actions lower to one or more Home Assistant intents. A generic action
-# such as "set" intentionally fans out; intents.yaml constraints select the
+# such as "set" intentionally fans out; intent metadata constraints select the
 # viable slot combination.
 actions:
   turn_on:
@@ -248,17 +252,12 @@ actions:
   activate:
     phrases: [activate]
     intents: [HassTurnOn]
-    allowed_domains: [light, fan, scene, script]
+    allowed_domains: [light, fan, script]
 
   illuminate:
     phrases: [light up, illuminate]
     intents: [HassTurnOn]
     allowed_domains: [light]
-
-  run_script:
-    phrases: [run, start script, run script]
-    intents: [HassTurnOn]
-    allowed_domains: [script]
 
   get_state:
     phrases: [is, are, what is, what's, check, tell me, where is, where can i find]
@@ -287,12 +286,12 @@ actions:
     intents: [HassGetCurrentTime]
 
   get_temperature:
-    phrases: [what is the temperature, what's the temperature, what is the temp, what's the temp, how warm is, how cold is]
-    intents: [HassClimateGetTemperature, HassGetState]
+    phrases: [what is the temperature, what's the temperature, what is the temp, what's the temp, how warm is, how cold is, temp, temperature]
+    intents: [HassClimateGetTemperature]
     temperature_query: true
 
   get_weather:
-    phrases: [what is the weather, what's the weather, weather, weather report]
+    phrases: [what is the weather, what's the weather, weather, weather report, forecast]
     intents: [HassGetWeather]
 
   vacuum_start:
@@ -301,6 +300,7 @@ actions:
 
   vacuum_return:
     phrases: [return vacuum, return the vacuum, return to base, go to base, dock vacuum]
+    allow_interstitial_targets: true
     intents: [HassVacuumReturnToBase]
 
   vacuum_clean_area:
@@ -435,7 +435,7 @@ actions:
     intents: [HassUnpauseTimer]
 
   timer_status:
-    phrases: [status, timer status, time left, how much time is left, how long is left]
+    phrases: [status, timer status, time left, how much time is left, how long is left, where is, what is, where's, what's]
     allow_interstitial_skips: true
     require_markers: [timer]
     intents: [HassTimerStatus]

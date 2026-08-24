@@ -71,11 +71,10 @@ class GazetteerMatcher:
         *,
         vocabulary: ConfigSource | None = None,
         home: ConfigSource | None = None,
-        intents: ConfigSource | None = None,
+        intents: dict[str, Any] | None = None,
         responses: ConfigSource | None = None,
         vocabulary_path: ConfigSource | None = None,
         home_path: ConfigSource | None = None,
-        intents_path: ConfigSource | None = None,
         responses_path: ConfigSource | None = None,
     ) -> None:
         self.config = MatcherConfig.load(
@@ -85,7 +84,6 @@ class GazetteerMatcher:
             responses=responses,
             vocabulary_path=vocabulary_path,
             home_path=home_path,
-            intents_path=intents_path,
             responses_path=responses_path,
         )
         self.catalog = IntentCatalog(self.config.intents)
@@ -100,10 +98,14 @@ class GazetteerMatcher:
             self.config.responses,
             self.config.home,
         )
-        self.actions: dict[str, dict[str, Any]] = self.config.vocabulary.get("actions") or {}
+        self.actions: dict[str, dict[str, Any]] = (
+            self.config.vocabulary.get("actions") or {}
+        )
         anaphora = self.config.vocabulary.get("anaphora") or {}
         self.anaphora_actions = set(anaphora.get("actions") or [])
-        self.combo_cues: dict[str, dict[str, Any]] = self.config.vocabulary.get("combination_cues") or {}
+        self.combo_cues: dict[str, dict[str, Any]] = (
+            self.config.vocabulary.get("combination_cues") or {}
+        )
         acceptance = self.config.vocabulary.get("acceptance") or {}
         legacy_max_unexplained = acceptance.get("max_unexplained_content_tokens")
         self.max_unexplained_important = int(
@@ -137,9 +139,7 @@ class GazetteerMatcher:
                 )
         return _ResolvedContext(area=area, floor=floor)
 
-    def _resolve_home_reference(
-        self, kind: str, value: str | None
-    ) -> str | None:
+    def _resolve_home_reference(self, kind: str, value: str | None) -> str | None:
         if value is None:
             return None
         collection_name = "areas" if kind == "area" else "floors"
@@ -186,8 +186,7 @@ class GazetteerMatcher:
     ) -> int:
         indexes = self._span_indexes(span)
         has_duplicate = any(
-            other.value != span.value
-            and self._span_indexes(other) == indexes
+            other.value != span.value and self._span_indexes(other) == indexes
             for other in name_spans
         )
         if not has_duplicate:
@@ -269,9 +268,11 @@ class GazetteerMatcher:
             return self._prefer_action_spans(local), False
         if previous_actions:
             # Keep overlapping lexical interpretations at the nearest previous
-            # action site; intents.yaml will eliminate many of them.
+            # action site; intent metadata will eliminate many of them.
             nearest_start = max(span.start for span in previous_actions)
-            inherited = [span for span in previous_actions if span.start == nearest_start]
+            inherited = [
+                span for span in previous_actions if span.start == nearest_start
+            ]
             return self._prefer_action_spans(inherited), True
         return [], False
 
@@ -300,7 +301,9 @@ class GazetteerMatcher:
             by_value = by_tag_value.setdefault(span.tag, {})
             key = repr(span.value)
             previous = by_value.get(key)
-            if previous is None or self._span_preference(span) < self._span_preference(previous):
+            if previous is None or self._span_preference(span) < self._span_preference(
+                previous
+            ):
                 by_value[key] = span
         result: dict[str, Span] = {}
         for tag, values in by_tag_value.items():
@@ -339,7 +342,9 @@ class GazetteerMatcher:
         for span in spans:
             key = repr(span.value)
             old = unique.get(key)
-            if old is None or GazetteerMatcher._span_preference(span) < GazetteerMatcher._span_preference(old):
+            if old is None or GazetteerMatcher._span_preference(
+                span
+            ) < GazetteerMatcher._span_preference(old):
                 unique[key] = span
         return sorted(unique.values(), key=GazetteerMatcher._span_preference)[:limit]
 
@@ -358,9 +363,7 @@ class GazetteerMatcher:
             if slot == "name":
                 spans.sort(
                     key=lambda span: (
-                        self._duplicate_name_context_rank(
-                            span, matching, context
-                        ),
+                        self._duplicate_name_context_rank(span, matching, context),
                         self._span_preference(span),
                     )
                 )
@@ -377,16 +380,11 @@ class GazetteerMatcher:
                 for span in spans
             ]
         exact_values = {
-            repr(span.value)
-            for span in matching
-            if not span.source.startswith("fuzzy")
+            repr(span.value) for span in matching if not span.source.startswith("fuzzy")
         }
         unique: dict[tuple[int, int, str], Span] = {}
         for span in matching:
-            if (
-                span.source.startswith("fuzzy")
-                and repr(span.value) in exact_values
-            ):
+            if span.source.startswith("fuzzy") and repr(span.value) in exact_values:
                 continue
             key = (span.start, span.end, repr(span.value))
             old = unique.get(key)
@@ -434,13 +432,13 @@ class GazetteerMatcher:
                 continue
             key = (candidate.start, candidate.end, repr(candidate.value))
             old = numeric_spans.get(key)
-            if old is None or self._span_preference(candidate) < self._span_preference(old):
+            if old is None or self._span_preference(candidate) < self._span_preference(
+                old
+            ):
                 numeric_spans[key] = candidate
 
         result: list[SlotOption] = []
-        for span in sorted(
-            numeric_spans.values(), key=self._span_preference
-        )[:8]:
+        for span in sorted(numeric_spans.values(), key=self._span_preference)[:8]:
             if not self._numeric_role_allowed(slot, combo, span, visible_spans):
                 continue
             value = span.value
@@ -538,9 +536,7 @@ class GazetteerMatcher:
 
         # "doors locked" conventionally refers to lock entities, whereas
         # open/closed door queries refer to covers or binary sensors.
-        state_values = {
-            span.value for span in visible_spans if span.tag == "state"
-        }
+        state_values = {span.value for span in visible_spans if span.tag == "state"}
         door_spans = [
             span
             for span in visible_spans
@@ -575,9 +571,14 @@ class GazetteerMatcher:
                 )
 
         # Property slots are diagnostic enough to permit a single-domain
-        # inference from intents.yaml (e.g. brightness => light).
+        # inference from intent metadata (e.g. brightness => light).
         diagnostic_slots = {"brightness", "color", "temperature", "position"}
-        diagnostic_tags = {"percent_value", "temperature_value", "color", "device_class"}
+        diagnostic_tags = {
+            "percent_value",
+            "temperature_value",
+            "color",
+            "device_class",
+        }
         has_diagnostic = bool(diagnostic_slots & set(combo.slots)) and any(
             span.tag in diagnostic_tags for span in visible_spans
         )
@@ -611,7 +612,13 @@ class GazetteerMatcher:
             return None
         start, end = segment
         action_indexes = self._span_indexes(action_span)
-        action_end = max((index for index in action_indexes if start <= index < end), default=start - 1) + 1
+        action_end = (
+            max(
+                (index for index in action_indexes if start <= index < end),
+                default=start - 1,
+            )
+            + 1
+        )
         indexes = list(range(max(start, action_end), end))
         if not indexes:
             return None
@@ -637,8 +644,13 @@ class GazetteerMatcher:
                     remove.update(self._span_indexes(span))
         else:  # conversation_command
             removable_tags = {
-                "skip", "duration_hours", "duration_minutes", "duration_seconds",
-                "number", "unit", "slot_marker",
+                "skip",
+                "duration_hours",
+                "duration_minutes",
+                "duration_seconds",
+                "number",
+                "unit",
+                "slot_marker",
             }
             for span in local:
                 if span.tag in removable_tags:
@@ -684,12 +696,12 @@ class GazetteerMatcher:
             return [SlotOption(slot=slot, value=fixed[slot], source="fixed_action")]
 
         if slot in _DIRECT_SLOT_TAGS:
-            options = self._direct_options(
-                slot, visible_spans, segment, context
-            )
+            options = self._direct_options(slot, visible_spans, segment, context)
             if slot == "domain":
                 options.extend(
-                    self._inferred_domain_options(combo, visible_spans, segment, action_spec)
+                    self._inferred_domain_options(
+                        combo, visible_spans, segment, action_spec
+                    )
                 )
             return options
 
@@ -799,9 +811,7 @@ class GazetteerMatcher:
             if required_marker not in marker_values:
                 violations.append(f"missing required marker {required_marker!r}")
 
-        relation_values = {
-            span.value for span in local_spans if span.tag == "relation"
-        }
+        relation_values = {span.value for span in local_spans if span.tag == "relation"}
         if intent == "HassSetVolume" and "by" in relation_values:
             violations.append("absolute volume is incompatible with 'by'")
         if intent == "HassSetVolume" and action_spec.get("directional_volume"):
@@ -820,11 +830,7 @@ class GazetteerMatcher:
             slot.startswith("start_") for slot in selected
         ):
             durations = sorted(
-                (
-                    span
-                    for span in local_spans
-                    if span.tag.startswith("duration_")
-                ),
+                (span for span in local_spans if span.tag.startswith("duration_")),
                 key=lambda span: span.start,
             )
             if len({(span.start, span.end) for span in durations}) >= 2:
@@ -833,8 +839,7 @@ class GazetteerMatcher:
                 relations = {
                     span.value
                     for span in local_spans
-                    if span.tag == "relation"
-                    and first_start < span.start < last_end
+                    if span.tag == "relation" and first_start < span.start < last_end
                 }
                 timer_between = any(
                     span.tag == "slot_marker"
@@ -852,7 +857,11 @@ class GazetteerMatcher:
         name_option = selected.get("name")
         name_span = name_option.spans[0] if name_option and name_option.spans else None
         entity_domain = name_span.meta.get("domain") if name_span else None
-        if name_option and combo.name_domains and entity_domain not in combo.name_domains:
+        if (
+            name_option
+            and combo.name_domains
+            and entity_domain not in combo.name_domains
+        ):
             violations.append(
                 f"entity domain {entity_domain!r} not allowed by name_domains"
             )
@@ -885,10 +894,12 @@ class GazetteerMatcher:
 
         domain_option = selected.get("domain")
         domain = domain_option.value if domain_option else entity_domain
-        if domain_option and combo.inferred_domains and domain not in combo.inferred_domains:
-            violations.append(
-                f"domain {domain!r} not allowed by inferred_domains"
-            )
+        if (
+            domain_option
+            and combo.inferred_domains
+            and domain not in combo.inferred_domains
+        ):
+            violations.append(f"domain {domain!r} not allowed by inferred_domains")
 
         has_anaphoric_target = any(
             option.source == "anaphora" for option in selected.values()
@@ -915,11 +926,7 @@ class GazetteerMatcher:
             elif is_global_scope:
                 if has_location_evidence or has_name_evidence or has_context_here:
                     violations.append("global scope conflicts with a local target")
-                if not (
-                    has_scope_home
-                    or has_quantifier_all
-                    or has_anaphoric_target
-                ):
+                if not (has_scope_home or has_quantifier_all or has_anaphoric_target):
                     violations.append("global scope requires an all/home-wide cue")
             elif has_scope_home:
                 violations.append("home-wide cue requires a global combination")
@@ -952,11 +959,11 @@ class GazetteerMatcher:
 
         action_domains = set(action_spec.get("allowed_domains") or [])
         if action_domains and domain is not None and domain not in action_domains:
-            violations.append(
-                f"domain {domain!r} incompatible with virtual action"
-            )
+            violations.append(f"domain {domain!r} incompatible with virtual action")
         if action_domains and domain is None and name_option:
-            violations.append("virtual action requires a known compatible entity domain")
+            violations.append(
+                "virtual action requires a known compatible entity domain"
+            )
 
         device_option = selected.get("device_class")
         if device_option and device_option.spans and domain_option:
@@ -968,10 +975,18 @@ class GazetteerMatcher:
         # belongs to the explicit location.
         if name_span is not None:
             area = selected.get("area")
-            if area and name_span.meta.get("area") and area.value != name_span.meta.get("area"):
+            if (
+                area
+                and name_span.meta.get("area")
+                and area.value != name_span.meta.get("area")
+            ):
                 violations.append("entity is not in the selected area")
             floor = selected.get("floor")
-            if floor and name_span.meta.get("floor") and floor.value != name_span.meta.get("floor"):
+            if (
+                floor
+                and name_span.meta.get("floor")
+                and floor.value != name_span.meta.get("floor")
+            ):
                 violations.append("entity is not on the selected floor")
 
         cue_cfg = self.combo_cues.get(f"{intent}.{combo.name}", {})
@@ -1002,7 +1017,7 @@ class GazetteerMatcher:
         # Grammatical scaffolding is always ignorable. Cues are consumed only
         # when the chosen combination actually licenses them.
         for span in local_spans:
-            if span.tag == "skip":
+            if span.tag in {"skip", "coordination_reference"}:
                 consumed.update(self._span_indexes(span))
 
         cue_cfg = self.combo_cues.get(f"{intent}.{combo.name}", {})
@@ -1098,7 +1113,9 @@ class GazetteerMatcher:
         inherited_action: bool,
         context: _ResolvedContext,
     ) -> FrameCandidate:
-        violations = self._candidate_violations(intent, combo, selected, action_spec, local_spans)
+        violations = self._candidate_violations(
+            intent, combo, selected, action_spec, local_spans
+        )
         consumed = self._consumed_indexes(
             intent, combo, selected, action_span, local_spans, segment
         )
@@ -1117,17 +1134,22 @@ class GazetteerMatcher:
         ]
         inherited_slots = sum(option.inherited for option in selected.values())
         fuzzy_options = [
-            option
-            for option in selected.values()
-            if option.source.startswith("fuzzy")
+            option for option in selected.values() if option.source.startswith("fuzzy")
         ]
         fuzzy_action = int(action_span.source.startswith("fuzzy"))
         fuzzy_count = fuzzy_action + len(fuzzy_options)
         fuzzy_distance = (1.0 - action_span.similarity if fuzzy_action else 0.0) + sum(
             1.0 - option.similarity for option in fuzzy_options
         )
-        target_generality = 0 if "name" in selected else int(
-            any(slot in selected for slot in ("area", "floor", "domain", "device_class"))
+        target_generality = (
+            0
+            if "name" in selected
+            else int(
+                any(
+                    slot in selected
+                    for slot in ("area", "floor", "domain", "device_class")
+                )
+            )
         )
         context_rank = 0
         selected_name = selected.get("name")
@@ -1155,11 +1177,8 @@ class GazetteerMatcher:
         if name_option and name_option.spans and "state" in slot_values:
             entity_domain = name_option.spans[0].meta.get("domain")
             normalization = (
-                (self.config.vocabulary.get("state_normalization") or {}).get(
-                    entity_domain
-                )
-                or {}
-            )
+                self.config.vocabulary.get("state_normalization") or {}
+            ).get(entity_domain) or {}
             slot_values["state"] = normalization.get(
                 slot_values["state"], slot_values["state"]
             )
@@ -1218,6 +1237,8 @@ class GazetteerMatcher:
 
         for intent in action_spec.get("intents") or []:
             for combo in self.catalog.combinations(intent):
+                if combo.context_area is True and context.area is None:
+                    continue
                 if (
                     anaphor_span is not None
                     and previous_target is not None
@@ -1265,8 +1286,8 @@ class GazetteerMatcher:
                     continue
 
                 selections = product(*option_lists) if option_lists else [()]
-                for options in selections:
-                    selected = {option.slot: option for option in options}
+                for selection in selections:
+                    selected = {option.slot: option for option in selection}
                     if (
                         combo.context_area
                         and context.area is not None
@@ -1419,13 +1440,66 @@ class GazetteerMatcher:
         )
 
     @staticmethod
-    def _matches_required_target(candidate: FrameCandidate, required: dict[str, Any]) -> bool:
+    def _matches_required_target(
+        candidate: FrameCandidate, required: dict[str, Any]
+    ) -> bool:
         if not required:
             return True
         for slot, value in required.items():
             if candidate.slots.get(slot) != value:
                 return False
         return True
+
+    def _resolve_coordination_reference(
+        self,
+        spans: list[Span],
+        segment: tuple[int, int],
+        chosen_frames: list[FrameCandidate],
+    ) -> tuple[dict[str, Any], str | None, str | None]:
+        references = [
+            span
+            for span in spans
+            if span.tag == "coordination_reference" and self._in_segment(span, segment)
+        ]
+        if not references:
+            return {}, None, None
+        if len(references) != 1:
+            return (
+                {},
+                "anaphora_multiple_pronouns",
+                "only one coordinated target reference is supported",
+            )
+
+        reference = references[0]
+        if self._has_local_target_span(spans, segment):
+            return (
+                {},
+                "anaphora_explicit_target",
+                "a coordinated target reference cannot be combined with an explicit target",
+            )
+        if not chosen_frames:
+            return (
+                {},
+                "anaphora_missing_target",
+                f"no preceding target for {reference.text!r}",
+            )
+
+        target = self._target_context(chosen_frames[-1])
+        if not target:
+            return (
+                {},
+                "anaphora_missing_target",
+                f"no preceding target for {reference.text!r}",
+            )
+        if reference.value == "singular" and "name" not in target:
+            return (
+                {},
+                "anaphora_singular_group",
+                f"{reference.text!r} requires a single named entity target",
+            )
+        if reference.value == "singular":
+            return {"name": target["name"]}, None, None
+        return target, None, None
 
     @staticmethod
     def _normalize_previous_targets(
@@ -1440,9 +1514,7 @@ class GazetteerMatcher:
         }
         for target in targets:
             if not isinstance(target, TargetReference):
-                raise TypeError(
-                    "previous_targets must contain TargetReference values"
-                )
+                raise TypeError("previous_targets must contain TargetReference values")
             slots = set(target.slots)
             if not slots or not slots <= allowed_slots:
                 raise ValueError("previous target has unsupported slots")
@@ -1488,8 +1560,12 @@ class GazetteerMatcher:
                 "only one follow-up pronoun is supported",
             )
         anaphor = anaphors[0]
+        action_indexes = {
+            index for action in actions for index in self._span_indexes(action)
+        }
         if any(
             span.tag in {"name", "area", "floor", "domain", "device_class"}
+            and not set(self._span_indexes(span)).issubset(action_indexes)
             for span in spans
         ):
             return (
@@ -1539,9 +1615,7 @@ class GazetteerMatcher:
         follow-up pronoun.
         """
         context = self._resolve_home_context(context_area, context_floor)
-        resolved_previous_targets = self._normalize_previous_targets(
-            previous_targets
-        )
+        resolved_previous_targets = self._normalize_previous_targets(previous_targets)
         tokens = normalize_tokens(text)
         spans = self.tagger.tag(tokens)
         conjunctions = self._select_conjunctions(spans)
@@ -1555,14 +1629,20 @@ class GazetteerMatcher:
         ambiguous = False
 
         for segment in segments:
-            actions, inherited_action = self._segment_actions(spans, segment, previous_actions)
+            actions, inherited_action = self._segment_actions(
+                spans, segment, previous_actions
+            )
             local_actual_actions = [
-                span for span in all_action_spans if self._touches_segment(span, segment)
+                span
+                for span in all_action_spans
+                if self._touches_segment(span, segment)
             ]
             if local_actual_actions:
                 previous_actions = self._prefer_action_spans(local_actual_actions)
 
-            debug = SegmentDebug(start=segment[0], end=segment[1], action_candidates=actions)
+            debug = SegmentDebug(
+                start=segment[0], end=segment[1], action_candidates=actions
+            )
             if not actions:
                 debug.rejection_reason = "no action recognized or inherited"
                 segment_debug.append(debug)
@@ -1600,10 +1680,33 @@ class GazetteerMatcher:
                     segments=segment_debug,
                 )
 
+            (
+                coordination_target,
+                coordination_code,
+                coordination_error,
+            ) = self._resolve_coordination_reference(
+                spans,
+                segment,
+                chosen_frames,
+            )
+            if coordination_error is not None:
+                debug.rejection_reason = coordination_error
+                segment_debug.append(debug)
+                return self._rejected_interpretation(
+                    text=text,
+                    tokens=tokens,
+                    spans=spans,
+                    frames=chosen_frames,
+                    reason=coordination_error,
+                    rejection_code=coordination_code or "generic",
+                    segments=segment_debug,
+                )
+
             visible_spans = self._visible_spans_for_segment(spans, segment, shared)
-            required_target: dict[str, Any] = {}
+            required_target = coordination_target
             if (
-                inherited_action
+                not required_target
+                and inherited_action
                 and chosen_frames
                 and not self._has_local_target_span(spans, segment)
             ):

@@ -1,0 +1,34 @@
+language: en
+
+# Adapted from Home Assistant's built-in sentence starter pack:
+# https://www.home-assistant.io/voice_control/builtin_sentences
+cases:
+  - sentence: open the bedroom blinds
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: cover.bedroom_blinds}
+
+  - sentence: close the kitchen window
+    frames:
+      - intent: HassTurnOff
+        combination: name_only
+        slots: {name: cover.kitchen_window}
+
+  - sentence: open kitchen window
+    frames:
+      - intent: HassTurnOn
+        combination: name_only
+        slots: {name: cover.kitchen_window}
+
+  - sentence: which blinds are closed
+    frames:
+      - intent: HassGetState
+        combination: name_state
+        slots: {name: cover.bedroom_blinds, state: closed}
+
+  - sentence: set bedroom blinds to 50%
+    frames:
+      - intent: HassSetPosition
+        combination: name_only
+        slots: {name: cover.bedroom_blinds, position: 50}

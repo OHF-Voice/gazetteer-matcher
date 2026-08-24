@@ -1,0 +1,22 @@
+language: en
+
+# Adapted from Home Assistant's built-in sentence starter pack:
+# https://www.home-assistant.io/voice_control/builtin_sentences
+cases:
+  - sentence: what time is it
+    frames:
+      - intent: HassGetCurrentTime
+        combination: default
+        slots: {}
+
+  - sentence: what's the date
+    frames:
+      - intent: HassGetCurrentDate
+        combination: default
+        slots: {}
+
+  - sentence: what is the outside temperature
+    frames:
+      - intent: HassGetState
+        combination: name_only
+        slots: {name: sensor.outside_temperature}

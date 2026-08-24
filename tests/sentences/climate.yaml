@@ -1,0 +1,42 @@
+language: en
+
+# Temperature queries adapted from the English intent-sentences tests. Bare
+# queries use the voice satellite's area, matching Assist behavior.
+cases:
+  - sentence: what is the temperature
+    context_area: Living Room
+    frames:
+      - intent: HassClimateGetTemperature
+        combination: default
+        slots: {area: living_room}
+
+  - sentence: how warm is it
+    context_area: Living Room
+    frames:
+      - intent: HassClimateGetTemperature
+        combination: default
+        slots: {area: living_room}
+
+  - sentence: what is the temperature in the living room
+    frames:
+      - intent: HassClimateGetTemperature
+        combination: area_only
+        slots: {area: living_room}
+
+  - sentence: what's the temp in the living room
+    frames:
+      - intent: HassClimateGetTemperature
+        combination: area_only
+        slots: {area: living_room}
+
+  - sentence: what is the temperature of ecobee
+    frames:
+      - intent: HassClimateGetTemperature
+        combination: name_only
+        slots: {name: climate.ecobee}
+
+  - sentence: hows the temperature of ecobee
+    frames:
+      - intent: HassClimateGetTemperature
+        combination: name_only
+        slots: {name: climate.ecobee}

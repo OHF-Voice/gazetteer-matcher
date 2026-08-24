@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-
 TargetScope = Literal["entity", "area", "floor", "home"]
 _TARGET_SLOTS = ("name", "area", "floor", "domain", "device_class")
 
@@ -83,7 +82,9 @@ class FrameCandidate:
         )
 
     def semantic_key(self) -> tuple[Any, ...]:
-        normalized = tuple(sorted((key, repr(value)) for key, value in self.slots.items()))
+        normalized = tuple(
+            sorted((key, repr(value)) for key, value in self.slots.items())
+        )
         return self.intent, normalized
 
 
@@ -125,12 +126,10 @@ class Interpretation:
             if frame.target_scope is None:
                 continue
             slots = {
-                slot: frame.slots[slot]
-                for slot in _TARGET_SLOTS
-                if slot in frame.slots
+                slot: frame.slots[slot] for slot in _TARGET_SLOTS if slot in frame.slots
             }
             if slots:
-                result.append(
-                    TargetReference(slots=slots, scope=frame.target_scope)
-                )
+                target = TargetReference(slots=slots, scope=frame.target_scope)
+                if target not in result:
+                    result.append(target)
         return tuple(result)

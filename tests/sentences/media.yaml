@@ -1,0 +1,153 @@
+language: en
+
+# Adapted from Home Assistant's built-in sentence starter pack:
+# https://www.home-assistant.io/voice_control/builtin_sentences
+cases:
+  - sentence: next item on TV
+    frames:
+      - intent: HassMediaNext
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: next track
+    context_area: Living Room
+    frames:
+      - intent: HassMediaNext
+        combination: default
+        slots: {area: living_room}
+
+  - sentence: next track in living room
+    frames:
+      - intent: HassMediaNext
+        combination: area_only
+        slots: {area: living_room}
+
+  - sentence: previous track
+    context_area: Living Room
+    frames:
+      - intent: HassMediaPrevious
+        combination: default
+        slots: {area: living_room}
+
+  - sentence: previous track in living room
+    frames:
+      - intent: HassMediaPrevious
+        combination: area_only
+        slots: {area: living_room}
+
+  - sentence: skip song on the TV
+    frames:
+      - intent: HassMediaNext
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: skip track on the TV
+    frames:
+      - intent: HassMediaNext
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: skip to the next song on the TV
+    frames:
+      - intent: HassMediaNext
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: pause
+    context_area: Living Room
+    frames:
+      - intent: HassMediaPause
+        combination: default
+        slots: {area: living_room}
+
+  - sentence: resume
+    context_area: Living Room
+    frames:
+      - intent: HassMediaUnpause
+        combination: default
+        slots: {area: living_room}
+
+  - sentence: pause living room music
+    frames:
+      - intent: HassMediaPause
+        combination: area_only
+        slots: {area: living_room}
+
+  - sentence: resume living room music
+    frames:
+      - intent: HassMediaUnpause
+        combination: area_only
+        slots: {area: living_room}
+
+  - sentence: pause TV
+    frames:
+      - intent: HassMediaPause
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: resume TV
+    frames:
+      - intent: HassMediaUnpause
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: unpause TV
+    frames:
+      - intent: HassMediaUnpause
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: TV unpause
+    frames:
+      - intent: HassMediaUnpause
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: set TV volume to 90 percent
+    frames:
+      - intent: HassSetVolume
+        combination: name_only
+        slots: {name: media_player.living_room, volume_level: 90}
+
+  - sentence: change the TV volume to 90
+    frames:
+      - intent: HassSetVolume
+        combination: name_only
+        slots: {name: media_player.living_room, volume_level: 90}
+
+  - sentence: turn TV volume down to 90 percent
+    frames:
+      - intent: HassSetVolume
+        combination: name_only
+        slots: {name: media_player.living_room, volume_level: 90}
+
+  - sentence: mute my TV
+    frames:
+      - intent: HassMediaPlayerMute
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: unmute the television
+    frames:
+      - intent: HassMediaPlayerUnmute
+        combination: name_only
+        slots: {name: media_player.living_room}
+
+  - sentence: increase living room volume by 10 percent
+    frames:
+      - intent: HassSetVolumeRelative
+        combination: area_only
+        slots: {area: living_room, volume_step: 10}
+
+  - sentence: turn living room volume down by 20 percent
+    frames:
+      - intent: HassSetVolumeRelative
+        combination: area_only
+        slots: {area: living_room, volume_step: -20}
+
+  - sentence: volume up
+    context_area: Living Room
+    frames:
+      - intent: HassSetVolumeRelative
+        combination: default
+        slots: {area: living_room, volume_step: up}

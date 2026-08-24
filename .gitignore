@@ -27,6 +27,9 @@ dist/
 # Local Python/runtime selection
 .python-version
 
+# Third-party catalogs fetched locally, never distributed (see README)
+local/
+
 # OS metadata
 .DS_Store
 Thumbs.db

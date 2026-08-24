@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from .debug import render_interpretation, render_json, render_spans
 from .matcher import GazetteerMatcher
@@ -12,7 +12,6 @@ from .matcher import GazetteerMatcher
 def _add_paths(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--vocabulary", type=Path, help="Override vocabulary.yaml")
     parser.add_argument("--home", type=Path, help="Override home.yaml")
-    parser.add_argument("--intents", type=Path, help="Override intents.yaml")
     parser.add_argument("--responses", type=Path, help="Override responses.yaml")
 
 
@@ -20,7 +19,6 @@ def _matcher(args: argparse.Namespace) -> GazetteerMatcher:
     return GazetteerMatcher(
         vocabulary_path=args.vocabulary,
         home_path=args.home,
-        intents_path=args.intents,
         responses_path=args.responses,
     )
 
@@ -39,7 +37,9 @@ def main(argv: list[str] | None = None) -> int:
         "--context-floor",
         help="Voice satellite floor ID, name, or alias",
     )
-    match_parser.add_argument("--debug", action="store_true", help="Show spans and candidate frames")
+    match_parser.add_argument(
+        "--debug", action="store_true", help="Show spans and candidate frames"
+    )
     match_parser.add_argument("--json", action="store_true", help="Emit JSON")
     _add_paths(match_parser)
 
@@ -47,7 +47,9 @@ def main(argv: list[str] | None = None) -> int:
     spans_parser.add_argument("text")
     _add_paths(spans_parser)
 
-    support_parser = subparsers.add_parser("support", help="Report intents.yaml combination coverage")
+    support_parser = subparsers.add_parser(
+        "support", help="Report intent-metadata combination coverage"
+    )
     _add_paths(support_parser)
 
     args = parser.parse_args(argv)

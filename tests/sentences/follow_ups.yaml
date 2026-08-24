@@ -1,0 +1,72 @@
+language: en
+
+# Multi-turn cases run in order. Each accepted turn's targets become the
+# previous_targets supplied to the following turn.
+series:
+  - name: area lights can be reused by them
+    turns:
+      - sentence: turn on the kitchen lights
+        frames:
+          - intent: HassTurnOn
+            combination: area_domain
+            slots: {area: kitchen, domain: light}
+      - sentence: turn them off
+        frames:
+          - intent: HassTurnOff
+            combination: area_domain
+            slots: {area: kitchen, domain: light}
+
+  - name: reordered entity name can be reused by them
+    turns:
+      - sentence: turn on the ceiling lights in the living room
+        frames:
+          - intent: HassTurnOn
+            combination: name_only
+            slots: {name: light.living_room_ceiling}
+      - sentence: turn them off
+        frames:
+          - intent: HassTurnOff
+            combination: name_only
+            slots: {name: light.living_room_ceiling}
+
+  - name: state query target can be unlocked with it
+    turns:
+      - sentence: is the front door locked
+        frames:
+          - intent: HassGetState
+            combination: name_state
+            slots: {name: lock.front_door, state: locked}
+      - sentence: unlock it
+        frames:
+          - intent: HassTurnOff
+            combination: name_only
+            slots: {name: lock.front_door}
+
+  - name: repeated compound target is exported once
+    turns:
+      - sentence: turn on the hallway light and set its brightness to 40%
+        frames:
+          - intent: HassTurnOn
+            combination: name_only
+            slots: {name: light.hallway}
+          - intent: HassLightSet
+            combination: name_brightness
+            slots: {name: light.hallway, brightness: 40}
+      - sentence: turn it off
+        frames:
+          - intent: HassTurnOff
+            combination: name_only
+            slots: {name: light.hallway}
+
+  - name: cover target supports again
+    turns:
+      - sentence: close the bedroom blinds
+        frames:
+          - intent: HassTurnOff
+            combination: name_only
+            slots: {name: cover.bedroom_blinds}
+      - sentence: open them again
+        frames:
+          - intent: HassTurnOn
+            combination: name_only
+            slots: {name: cover.bedroom_blinds}

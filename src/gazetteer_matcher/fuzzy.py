@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import lru_cache
 import re
+from dataclasses import dataclass
 from typing import Iterable
-
 
 _SPACE_RE = re.compile(r"\s+")
 

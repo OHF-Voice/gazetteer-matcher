@@ -1,0 +1,29 @@
+language: en
+
+# Basic mower commands from the fallback cohort. Named mower and vacuum
+# commands have separate known matcher gaps and are intentionally not encoded
+# here as successful interpretations.
+cases:
+  - sentence: start mowing
+    frames:
+      - intent: HassLawnMowerStartMowing
+        combination: default
+        slots: {}
+
+  - sentence: start mowing the lawn
+    frames:
+      - intent: HassLawnMowerStartMowing
+        combination: default
+        slots: {}
+
+  - sentence: stop mowing
+    frames:
+      - intent: HassLawnMowerDock
+        combination: default
+        slots: {}
+
+  - sentence: stop mowing the lawn
+    frames:
+      - intent: HassLawnMowerDock
+        combination: default
+        slots: {}

@@ -1,0 +1,40 @@
+language: en
+
+# Representative weather queries from the English intent-sentences tests plus
+# terse fallback-friendly variants a user may reasonably try.
+cases:
+  - sentence: what's the weather
+    frames:
+      - intent: HassGetWeather
+        combination: default
+        slots: {}
+
+  - sentence: what is the weather like
+    frames:
+      - intent: HassGetWeather
+        combination: default
+        slots: {}
+
+  - sentence: weather report
+    frames:
+      - intent: HassGetWeather
+        combination: default
+        slots: {}
+
+  - sentence: forecast
+    frames:
+      - intent: HassGetWeather
+        combination: default
+        slots: {}
+
+  - sentence: what's the weather like in london
+    frames:
+      - intent: HassGetWeather
+        combination: name_only
+        slots: {name: weather.london}
+
+  - sentence: what is the weather in London like
+    frames:
+      - intent: HassGetWeather
+        combination: name_only
+        slots: {name: weather.london}

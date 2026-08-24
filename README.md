@@ -3,7 +3,7 @@
 An MVP, constraint-driven intent recognizer for Home Assistant voice commands.
 It is deliberately **not** a statistical intent classifier. It tags lexical
 spans, generates possible semantic frames, validates those frames against
-`OHF-Voice/intents` `intents.yaml`, and rejects interpretations that leave
+the Home Assistant intent metadata, and rejects interpretations that leave
 content unexplained.
 
 The project is intended as an experiment/prototype, not a drop-in replacement
@@ -19,14 +19,25 @@ for HassIL.
   colors, numeric properties, timer durations, and selected residual text slots.
 - Handle conjunctions by splitting coordinated segments and conservatively
   inheriting actions/targets/properties when the omitted value is unique.
-- Validate against the real `intents.yaml` slot-combination catalog.
+- Validate against the real Home Assistant slot-combination catalog.
 - Prefer lexicographic costs (violations, unexplained content, fuzziness,
   inheritance, etc.) over arbitrary weighted evidence scores.
 - Make every intermediate span and candidate frame inspectable.
 
-## Current `intents.yaml` snapshot
+## The intent metadata catalog
 
-The included snapshot has:
+The `home-assistant-intents` dependency provides the upstream Home Assistant
+slot-combination catalog. `GazetteerMatcher` loads it automatically with
+`get_intent_info()`; no catalog file, environment variable, or CLI option is
+required. Construction raises `RuntimeError` if the installed dependency does
+not contain its generated metadata instead of silently using an empty catalog.
+
+Callers that need an explicit catalog for testing may still pass an `intents`
+dictionary to `GazetteerMatcher` or `MatcherConfig.load`.
+
+### Reference numbers
+
+Against `home-assistant-intents` 2026.8.24:
 
 - 217 total slot combinations
 - 26 combinations with explicit `wildcard_slots` (excluded)
@@ -40,9 +51,8 @@ combinations. It means the generic slot machinery can construct/validate them
 when the required lexical evidence is available. The timer/media/free-text
 edges in particular are intentionally MVP-level.
 
-The bundled `intents.yaml` is unmodified upstream data and retains its CC BY
-4.0 licensing; see `THIRD_PARTY_NOTICES.md` and
-`OHF-Voice-intents-LICENSE.md`.
+These counts are tied to that package release; a different catalog revision
+will move them, along with the `test_support_catalog` assertions.
 
 ## Install
 
@@ -63,13 +73,20 @@ Dependencies are only:
 
 - `PyYAML`
 - `unicode-rbnf`
+- `home-assistant-intents`
 
 ## Quick start
 
 ```python
 from gazetteer_matcher import GazetteerMatcher
 
-matcher = GazetteerMatcher()
+matcher = GazetteerMatcher(
+    home={
+        "areas": {"kitchen": {"name": "Kitchen"}},
+        "floors": {},
+        "entities": {},
+    }
+)
 
 result = matcher.interpret("flick on the kichen lights")
 assert result.accepted
@@ -78,8 +95,9 @@ for frame in result.frames:
     print(frame.intent, frame.combination, frame.slots)
 ```
 
-Configuration may be supplied directly as dictionaries or loaded from YAML
-paths. The `*_path` keywords remain available for compatibility:
+The default home is empty. Home configuration may be supplied directly as a
+dictionary or loaded from a YAML path. The `*_path` keywords remain available
+for compatibility:
 
 ```python
 matcher = GazetteerMatcher(
@@ -98,7 +116,7 @@ matcher = GazetteerMatcher(
 )
 ```
 
-With the sample `home.yaml`, this yields approximately:
+With this home configuration, the quick-start example yields approximately:
 
 ```text
 HassTurnOn area_domain {'area': 'kitchen', 'domain': 'light'}
@@ -143,11 +161,12 @@ assert result.frames[0].slots == {"name": "cover.bedroom_blinds"}
 
 Only `it` and `them` trigger target reuse. The modifiers `back` and `again`
 are accepted with those pronouns, and reuse is limited to turn-on, turn-off,
-open, and close actions. `it` requires one named entity; `them` may also reuse
-an area, floor, or whole-home selector. The current implementation rejects
-multiple previous target references, pronouns mixed with an explicit target,
-and any action whose existing intent/domain constraints do not support the
-target.
+open, close, lock, and unlock actions. `it` requires one named entity; `them`
+may also reuse an area, floor, or whole-home selector. Repeated references to
+the same target across a multi-frame interpretation are coalesced. The current
+implementation rejects multiple distinct previous target references, pronouns
+mixed with an explicit target, and any action whose existing intent/domain
+constraints do not support the target.
 
 `Interpretation.targets` is empty for rejected interpretations, so a partial
 multi-command match cannot accidentally replace conversation state. Previous
@@ -203,14 +222,14 @@ sentences already handled by the lean `speech_to_phrase` HassIL subset are
 removed before running the gazetteer matcher:
 
 ```bash
-python scripts/run_english_coverage.py
+python script/run_english_coverage.py
 ```
 
 Run one intent, or repeat the option to select several:
 
 ```bash
-python scripts/run_english_coverage.py --intent HassTurnOn
-python scripts/run_english_coverage.py \
+python script/run_english_coverage.py --intent HassTurnOn
+python script/run_english_coverage.py \
   --intent HassTurnOn --intent HassTurnOff
 ```
 
@@ -219,23 +238,76 @@ Measure only the existing test sentences that the lean
 intent and slot combination:
 
 ```bash
-python scripts/run_english_coverage.py --speech-to-phrase
+python script/run_english_coverage.py --speech-to-phrase
 ```
 
 To reproduce coverage across every non-wildcard sentence, including the lean
 HassIL cohort, use:
 
 ```bash
-python scripts/run_english_coverage.py --all-sentences
+python script/run_english_coverage.py --all-sentences
 ```
 
 This mode uses the local HassIL checkout at `~/opt/hassil`; override it with
 `--hassil-dir` when needed. It can be combined with one or more `--intent`
 filters.
 
+### Home fixture tests
+
+The sample gazetteer lives in `tests/home.yaml`. Positive end-to-end cases are
+grouped by intent family under `tests/sentences/`; each record contains an
+utterance, optional location context, and the complete ordered list of expected
+intent frames. The corpus is based on Home Assistant's
+[built-in sentence starter pack](https://www.home-assistant.io/voice_control/builtin_sentences).
+
+```yaml
+cases:
+  - sentence: is the front door locked
+    frames:
+      - intent: HassGetState
+        combination: name_state
+        slots: {name: lock.front_door, state: locked}
+```
+
+`tests/test_sentences.py` discovers every YAML file in that directory and
+compares every resulting intent, combination, and slot dictionary. Add
+home-specific positive coverage there instead of embedding it in Python test
+code.
+
+Multi-turn follow-ups use a `series` record. Turns run in order, and the
+targets from each accepted result are automatically passed to the next turn as
+`previous_targets`:
+
+```yaml
+series:
+  - name: kitchen lights follow-up
+    turns:
+      - sentence: turn on the kitchen lights
+        frames:
+          - intent: HassTurnOn
+            combination: area_domain
+            slots: {area: kitchen, domain: light}
+      - sentence: turn them off
+        frames:
+          - intent: HassTurnOff
+            combination: area_domain
+            slots: {area: kitchen, domain: light}
+```
+
+`context_area` and `context_floor` may be set on the series as defaults or on
+an individual turn as overrides. Existing `cases` and `series` may coexist in
+the same YAML file.
+
+The matcher runs after the built-in sentence and HassIL recognizers, so this
+home corpus is not intended to duplicate every upstream sentence. It keeps a
+small set of canonical anchors, then emphasizes useful fallback behavior such
+as aliases, terse queries, alternate word order, scoped state questions,
+coordination, anaphora, and fuzzy names. The broader upstream fallback cohort
+is measured separately by `script/run_english_coverage.py`.
+
 ### Rejection tests
 
-Negative examples live in `tests/rejections/en.yaml`, separate from positive
+Negative examples live in `tests/rejections.yaml`, separate from positive
 intent coverage so the two metrics cannot mask one another. Records look like:
 
 ```yaml
@@ -291,8 +363,7 @@ Override any data file:
 gazetteer-match match 'turn on the office lamp' \
   --home my-home.yaml \
   --vocabulary my-vocabulary.yaml \
-  --responses my-responses.yaml \
-  --intents path/to/OHF-Voice/intents/intents.yaml
+  --responses my-responses.yaml
 ```
 
 ## Vocabulary/data files
@@ -323,10 +394,10 @@ Actions may opt in to exact matching across grammatical skip tokens with
 ignored, one token per gap by default; matched action indexes remain explicit,
 so semantic content and conjunctions cannot be crossed accidentally.
 
-### `data/home.yaml`
+### `tests/home.yaml`
 
-The sample dynamic gazetteer. Replace this with a generated file from a Home
-Assistant instance:
+The test-only sample dynamic gazetteer. Applications should pass a dictionary
+or YAML path generated from their own Home Assistant instance:
 
 ```yaml
 areas:
@@ -350,12 +421,15 @@ entities:
 ```
 
 Exact aliases are tagged first. Pure-Python fuzzy lookup adds additional
-`name`, `area`, and `floor` candidates only where useful.
+`name`, `area`, and `floor` candidates only where useful. Entity names may
+also omit a complete interior word when the first and final words still match;
+for example, `Josh's Lights` can match `Josh's Office Lights`. Equally good
+shortened names remain ambiguous.
 
-### `data/intents.yaml`
+### Home Assistant intent metadata
 
-A snapshot of the upstream OHF-Voice slot-combination catalog. The matcher
-loads this dynamically instead of duplicating combinations in Python.
+The matcher reads the catalog returned by `home_assistant_intents.get_intent_info()`
+instead of duplicating combinations in Python or loading a separate YAML file.
 Combinations with `wildcard_slots` are intentionally ignored.
 
 ### `data/responses.yaml`
@@ -504,7 +578,7 @@ unexplained important tokens.
 
 ## Intent constraints currently enforced
 
-The generic validator uses `intents.yaml` for:
+The generic validator uses the Home Assistant intent metadata for:
 
 - exact required slot sets per combination
 - wildcard exclusion
@@ -522,48 +596,3 @@ It additionally enforces:
 - explicit combination cues configured in YAML
 - no incompatible reuse of the same lexical evidence for multiple slots
 - separate limits for unexplained semantic and unmatched content
-
-## Files
-
-```text
-gazetteer-matcher/
-├── pyproject.toml
-├── README.md
-├── LICENSE
-├── THIRD_PARTY_NOTICES.md
-├── OHF-Voice-intents-LICENSE.md
-├── examples/
-│   └── notebook_demo.py
-├── src/gazetteer_matcher/
-│   ├── __init__.py
-│   ├── cli.py
-│   ├── config.py
-│   ├── debug.py
-│   ├── fuzzy.py
-│   ├── matcher.py
-│   ├── models.py
-│   ├── numbers.py
-│   ├── schemas.py
-│   ├── tagger.py
-│   └── data/
-│       ├── home.yaml
-│       ├── intents.yaml
-│       └── vocabulary.yaml
-└── tests/
-    ├── test_fuzzy.py
-    └── test_matcher.py
-```
-
-## Deliberate MVP limitations
-
-- English is the provided vocabulary; the architecture is locale-oriented but
-  action/domain/etc. vocabularies need to be supplied per language.
-- No dependency parser and no general modifier/relational-description parser.
-- No dialogue state yet; this project focuses on single-turn recognition.
-- Wildcard combinations are excluded as requested.
-- Residual slots (`message`, `search_query`, `conversation_command`) are
-  heuristic and intentionally conservative.
-- Fuzzy matching is quadratic-ish pure Python and aimed at the small candidate
-  sets expected after HA domain/area constraints, not million-entry search.
-- This is not production-safe device control without substantially broader
-  corpus testing, especially around polarity and destructive actions.

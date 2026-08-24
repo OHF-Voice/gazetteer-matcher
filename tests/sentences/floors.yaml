@@ -1,0 +1,34 @@
+language: en
+
+# Floor-scoped variants are important fallback cases because ASR and users
+# commonly alternate between configured floor names and aliases.
+cases:
+  - sentence: turn on the lights upstairs
+    frames:
+      - intent: HassTurnOn
+        combination: floor_domain
+        slots: {floor: upstairs, domain: light}
+
+  - sentence: turn off the lights on the ground floor
+    frames:
+      - intent: HassTurnOff
+        combination: floor_domain
+        slots: {floor: ground, domain: light}
+
+  - sentence: set upstairs brightness to 50%
+    frames:
+      - intent: HassLightSet
+        combination: floor_brightness
+        slots: {floor: upstairs, brightness: 50, domain: light}
+
+  - sentence: turn on the lights on the second floor
+    frames:
+      - intent: HassTurnOn
+        combination: floor_domain
+        slots: {floor: upstairs, domain: light}
+
+  - sentence: turn off downstairs lights
+    frames:
+      - intent: HassTurnOff
+        combination: floor_domain
+        slots: {floor: ground, domain: light}

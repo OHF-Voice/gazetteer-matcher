@@ -3,18 +3,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from gazetteer_matcher import GazetteerMatcher
-
-
-REJECTIONS_PATH = Path(__file__).parent / "rejections" / "en.yaml"
-REJECTION_CASES = (yaml.safe_load(REJECTIONS_PATH.read_text()) or {}).get(
-    "cases", []
-)
-
-
-@pytest.fixture(scope="module")
-def matcher():
-    return GazetteerMatcher()
+REJECTIONS_PATH = Path(__file__).parent / "rejections.yaml"
+REJECTION_CASES = (yaml.safe_load(REJECTIONS_PATH.read_text()) or {}).get("cases", [])
 
 
 @pytest.mark.parametrize(

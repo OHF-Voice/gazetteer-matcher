@@ -1,12 +1,9 @@
 import pytest
 import yaml
 
+import gazetteer_matcher.config as matcher_config
 from gazetteer_matcher import GazetteerMatcher
-
-
-@pytest.fixture(scope="module")
-def matcher():
-    return GazetteerMatcher()
+from gazetteer_matcher.config import MatcherConfig
 
 
 def frame_tuples(result):
@@ -22,8 +19,8 @@ def test_support_catalog(matcher):
     assert summary["unmapped_intents"] == ["HassBroadcast", "HassRespond"]
 
 
-def test_configuration_can_be_supplied_as_dicts():
-    defaults = GazetteerMatcher().config
+def test_configuration_can_be_supplied_as_dicts(home_path):
+    defaults = GazetteerMatcher(home_path=home_path).config
     dict_matcher = GazetteerMatcher(
         vocabulary=defaults.vocabulary,
         home=defaults.home,
@@ -36,15 +33,37 @@ def test_configuration_can_be_supplied_as_dicts():
     assert result.frames[0].slots == {"domain": "light", "area": "kitchen"}
 
 
-def test_legacy_path_keywords_also_accept_dicts():
-    defaults = GazetteerMatcher().config
+def test_explicit_empty_intent_catalog_is_preserved():
+    config = MatcherConfig.load(intents={})
+
+    assert not config.intents
+
+
+def test_missing_packaged_intent_metadata_fails_loudly(monkeypatch):
+    monkeypatch.setattr(matcher_config, "get_intent_info", lambda: None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="home-assistant-intents package metadata is unavailable",
+    ):
+        MatcherConfig.load()
+
+
+def test_default_home_is_empty():
+    config = MatcherConfig.load()
+
+    assert config.home == {"areas": {}, "floors": {}, "entities": {}}
+
+
+def test_legacy_path_keywords_also_accept_dicts(home_path):
+    defaults = GazetteerMatcher(home_path=home_path).config
     dict_matcher = GazetteerMatcher(home_path=defaults.home)
 
     assert dict_matcher.interpret("turn on the kitchen lights").accepted
 
 
-def test_configuration_rejects_source_and_path_together():
-    home = GazetteerMatcher().config.home
+def test_configuration_rejects_source_and_path_together(home_path):
+    home = GazetteerMatcher(home_path=home_path).config.home
 
     with pytest.raises(
         TypeError,
@@ -79,6 +98,59 @@ def test_fuzzy_action(matcher):
     )
 
 
+def test_entity_name_can_elide_an_interior_word():
+    elision_matcher = GazetteerMatcher(
+        home={
+            "areas": {},
+            "floors": {},
+            "entities": {
+                "light.joshs_office_lights": {
+                    "name": "Josh's Office Lights",
+                    "domain": "light",
+                }
+            },
+        }
+    )
+
+    result = elision_matcher.interpret("are josh's lights on")
+
+    assert result.accepted
+    assert result.frames[0].intent == "HassGetState"
+    assert result.frames[0].combination == "name_state"
+    assert result.frames[0].slots == {
+        "name": "light.joshs_office_lights",
+        "state": "on",
+    }
+    assert any(
+        span.tag == "name" and span.source == "fuzzy_name_elision"
+        for span in result.spans
+    )
+
+
+def test_elided_entity_name_remains_ambiguous_when_not_unique():
+    elision_matcher = GazetteerMatcher(
+        home={
+            "areas": {},
+            "floors": {},
+            "entities": {
+                "light.joshs_office_lights": {
+                    "name": "Josh's Office Lights",
+                    "domain": "light",
+                },
+                "light.joshs_desk_lights": {
+                    "name": "Josh's Desk Lights",
+                    "domain": "light",
+                },
+            },
+        }
+    )
+
+    result = elision_matcher.interpret("are josh's lights on")
+
+    assert not result.accepted
+    assert result.ambiguous
+
+
 def test_separable_action(matcher):
     result = matcher.interpret("flick the kitchen lights on")
     assert result.accepted
@@ -90,6 +162,40 @@ def test_entity_name_wins(matcher):
     result = matcher.interpret("turn on the bedroom lamp")
     assert result.accepted
     assert result.frames[0].slots == {"name": "light.bedroom_lamp"}
+
+
+def test_reordered_area_qualified_entity_name_wins(matcher):
+    result = matcher.interpret("turn on the ceiling lights in the living room")
+
+    assert result.accepted
+    assert frame_tuples(result) == [
+        ("HassTurnOn", {"name": "light.living_room_ceiling"})
+    ]
+    assert any(
+        span.tag == "name" and span.source == "area_qualified_name"
+        for span in result.spans
+    )
+
+
+def test_bare_alias_is_not_reassigned_by_area_qualified_names(matcher):
+    result = matcher.interpret("turn on the ceiling lights")
+
+    assert result.accepted
+    assert frame_tuples(result) == [("HassTurnOn", {"name": "light.kitchen_ceiling"})]
+
+
+def test_action_can_wrap_an_exact_entity_target(matcher):
+    result = matcher.interpret("return rover to base")
+
+    assert result.accepted
+    assert frame_tuples(result) == [
+        ("HassVacuumReturnToBase", {"name": "vacuum.rover"})
+    ]
+    assert result.frames[0].action_span.source == "interstitial_target"
+    assert result.frames[0].action_span.meta["consumed_indexes"] == [0, 2, 3]
+    assert not any(
+        span.tag == "action" and span.value == "mower_dock" for span in result.spans
+    )
 
 
 def test_open_cover(matcher):
@@ -143,6 +249,40 @@ def test_conjunction_properties(matcher):
             {"area": "living_room", "brightness": 50, "domain": "light"},
         ),
     ]
+
+
+def test_possessive_property_clause_inherits_named_target(matcher):
+    result = matcher.interpret(
+        "turn on the hallway light and set its brightness to 40%"
+    )
+
+    assert result.accepted
+    assert frame_tuples(result) == [
+        ("HassTurnOn", {"name": "light.hallway"}),
+        (
+            "HassLightSet",
+            {"name": "light.hallway", "brightness": 40},
+        ),
+    ]
+    assert result.frames[1].inherited_slots == 1
+    assert result.frames[1].unexplained_tokens == []
+
+
+def test_singular_possessive_does_not_refer_to_a_group(matcher):
+    result = matcher.interpret(
+        "turn on the kitchen lights and set its brightness to 40%"
+    )
+
+    assert not result.accepted
+    assert result.rejection_code == "anaphora_singular_group"
+
+
+def test_possessive_property_requires_a_preceding_target(matcher):
+    result = matcher.interpret("set its brightness to 40%")
+
+    assert not result.accepted
+    assert result.rejection_code == "anaphora_missing_target"
+    assert result.response == "Sorry, I'm not sure what its refers to."
 
 
 def test_number_words(matcher):
@@ -356,17 +496,17 @@ def test_volume_relative(matcher):
         (
             "turn the volume down to 90 percent",
             "HassSetVolume",
-            {"volume_level": 90},
+            {"volume_level": 90, "area": "kitchen"},
         ),
         (
             "turn the volume down by 20 percent",
             "HassSetVolumeRelative",
-            {"volume_step": -20},
+            {"volume_step": -20, "area": "kitchen"},
         ),
     ],
 )
 def test_volume_relation_controls_absolute_vs_relative(matcher, text, intent, slots):
-    result = matcher.interpret(text)
+    result = matcher.interpret(text, context_area="Kitchen")
     assert result.accepted
     assert result.frames[0].intent == intent
     assert result.frames[0].slots == slots
@@ -385,6 +525,32 @@ def test_context_area_materializes_for_bare_domain_command(matcher, intent_word)
     assert result.accepted
     assert result.frames[0].combination == "domain_only"
     assert result.frames[0].slots == {
+        "domain": "light",
+        "area": "kitchen",
+    }
+
+
+@pytest.mark.parametrize("intent_word", ["on", "off"])
+def test_bare_domain_command_requires_context_area(matcher, intent_word):
+    result = matcher.interpret(f"turn {intent_word} the lights")
+
+    assert not result.accepted
+    assert result.frames == []
+
+
+def test_brightness_only_requires_and_materializes_context_area(matcher):
+    without_context = matcher.interpret("set brightness to 50%")
+    assert not without_context.accepted
+    assert without_context.frames == []
+
+    with_context = matcher.interpret(
+        "set brightness to 50%",
+        context_area="Kitchen",
+    )
+    assert with_context.accepted
+    assert with_context.frames[0].combination == "brightness_only"
+    assert with_context.frames[0].slots == {
+        "brightness": 50,
         "domain": "light",
         "area": "kitchen",
     }
@@ -473,9 +639,7 @@ def test_named_entity_can_be_reused_by_it(matcher):
     assert previous.targets[0].scope == "entity"
     assert previous.targets[0].slots == {"name": "light.bedroom_lamp"}
 
-    result = matcher.interpret(
-        "turn it back on", previous_targets=previous.targets
-    )
+    result = matcher.interpret("turn it back on", previous_targets=previous.targets)
     assert result.accepted
     assert result.frames[0].intent == "HassTurnOn"
     assert result.frames[0].combination == "name_only"
@@ -508,13 +672,43 @@ def test_named_blinds_can_be_reused_by_pronoun(matcher, text):
 
 def test_again_is_consumed_for_anaphoric_target(matcher):
     previous = matcher.interpret("close the bedroom blinds")
-    result = matcher.interpret(
-        "open them again", previous_targets=previous.targets
-    )
+    result = matcher.interpret("open them again", previous_targets=previous.targets)
     assert result.accepted
     assert result.frames[0].intent == "HassTurnOn"
     assert result.frames[0].slots == {"name": "cover.bedroom_blinds"}
     assert result.frames[0].unexplained_tokens == []
+
+
+@pytest.mark.parametrize(
+    ("follow_up", "intent"),
+    [("unlock it", "HassTurnOff"), ("lock it", "HassTurnOn")],
+)
+def test_named_lock_from_state_query_can_be_reused_by_it(matcher, follow_up, intent):
+    previous = matcher.interpret("is the front door locked")
+    assert previous.accepted
+    assert previous.frames[0].intent == "HassGetState"
+    assert len(previous.targets) == 1
+    assert previous.targets[0].slots == {"name": "lock.front_door"}
+
+    result = matcher.interpret(follow_up, previous_targets=previous.targets)
+    assert result.accepted
+    assert result.frames[0].intent == intent
+    assert result.frames[0].slots == {"name": "lock.front_door"}
+
+
+def test_repeated_target_across_frames_is_exported_once_for_follow_up(matcher):
+    previous = matcher.interpret(
+        "turn on the hallway light and set its brightness to 40%"
+    )
+    assert previous.accepted
+    assert len(previous.frames) == 2
+    assert len(previous.targets) == 1
+    assert previous.targets[0].slots == {"name": "light.hallway"}
+
+    result = matcher.interpret("turn it off", previous_targets=previous.targets)
+    assert result.accepted
+    assert result.frames[0].intent == "HassTurnOff"
+    assert result.frames[0].slots == {"name": "light.hallway"}
 
 
 @pytest.mark.parametrize("text", ["turn it back on", "close them"])

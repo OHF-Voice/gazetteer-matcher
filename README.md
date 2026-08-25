@@ -18,7 +18,6 @@ upstream intent schema.
   brightness to 40%`.
 - **Explicit conversational follow-ups**: `turn on the kitchen lights` followed
   by `turn them off`, or `is the front door locked?` followed by `lock it`.
-- **Natural state questions** that preserve `any`, `all`, `which`, and
 - **Conservative, schema-backed validation** with structured error categories
   and concise responses for ambiguous, unsupported, and out-of-range requests.
 

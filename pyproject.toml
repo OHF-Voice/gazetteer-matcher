@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gazetteer-matcher"
-version = "0.1.0"
+version = "1.0.0"
 description = "Constraint-driven gazetteer matcher for Home Assistant intents"
 readme = "README.md"
 requires-python = ">=3.11"

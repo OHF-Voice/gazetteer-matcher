@@ -44,6 +44,48 @@ jobs:
                   f"pyproject.toml version {version!r} (expected {expected_tag!r})"
               )
 
+      - name: Verify changelog section
+        shell: python
+        run: |
+          import pathlib
+          import re
+          import sys
+          import tomllib
+
+          metadata = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+          version = metadata["project"]["version"]
+          changelog_path = pathlib.Path("CHANGELOG.md")
+
+          if not changelog_path.is_file():
+              sys.exit("CHANGELOG.md is missing")
+
+          lines = changelog_path.read_text(encoding="utf-8").splitlines()
+          heading = re.compile(
+              rf"^##\s+\[?v?{re.escape(version)}\]?(?:\s+-\s+.+)?\s*$"
+          )
+          start = next(
+              (index + 1 for index, line in enumerate(lines) if heading.match(line)),
+              None,
+          )
+
+          if start is None:
+              sys.exit(f"CHANGELOG.md has no section for version {version}")
+
+          end = next(
+              (
+                  index
+                  for index in range(start, len(lines))
+                  if re.match(r"^##\s+", lines[index])
+              ),
+              len(lines),
+          )
+          section = "\n".join(lines[start:end])
+          section = re.sub(r"<!--.*?-->", "", section, flags=re.DOTALL)
+          section = re.sub(r"^\s*\[[^]]+\]:\s*\S+\s*$", "", section, flags=re.MULTILINE)
+
+          if not section.strip():
+              sys.exit(f"CHANGELOG.md section for version {version} is empty")
+
   wheels:
     name: Wheels (${{ matrix.os }})
     needs: verify

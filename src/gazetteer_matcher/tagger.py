@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from .config import MatcherConfig, phrase_tokens
-from .fuzzy import extract
+from .fuzzy import ChoiceBatch
 from .models import Span, Token
 from .numbers import NumberWordTrie
 
@@ -28,6 +28,8 @@ class SpanTagger:
             max_cardinal=int(number_cfg.get("max_cardinal", 10000)),
             max_ordinal=int(number_cfg.get("max_ordinal", 100)),
             joiners=list(number_cfg.get("joiners") or []),
+            negative_signs=list(number_cfg.get("negative_signs") or []),
+            positive_signs=list(number_cfg.get("positive_signs") or []),
         )
         self.entries: list[PhraseEntry] = []
         self._first_token: dict[str, list[PhraseEntry]] = {}
@@ -38,6 +40,25 @@ class SpanTagger:
             "name": {},
         }
         self._build_entries()
+        self.action_batch = self._choice_batch(self.action_phrase_to_keys)
+        self.fuzzy_batches = {
+            tag: self._choice_batch(choice_map)
+            for tag, choice_map in self.fuzzy_choices.items()
+        }
+        self.fuzzy_choice_tokens = {
+            tag: {choice: phrase_tokens(choice) for choice in choice_map}
+            for tag, choice_map in self.fuzzy_choices.items()
+        }
+
+    @staticmethod
+    def _choice_batch(choices: Iterable[str]) -> ChoiceBatch | None:
+        """Compile choices once, retaining token lengths for native filtering."""
+        choices = tuple(choices)
+        if not choices:
+            return None
+        return ChoiceBatch(
+            choices, token_lengths=[len(phrase_tokens(choice)) for choice in choices]
+        )
 
     def _add(
         self,
@@ -445,8 +466,15 @@ class SpanTagger:
         Anchoring both ends keeps generic suffixes such as ``office lights``
         from matching every longer entity name that happens to contain them.
         """
-        query_tokens = phrase_tokens(query)
-        choice_tokens = phrase_tokens(choice)
+        return SpanTagger._name_elision_token_score(
+            phrase_tokens(query), phrase_tokens(choice)
+        )
+
+    @staticmethod
+    def _name_elision_token_score(
+        query_tokens: tuple[str, ...], choice_tokens: tuple[str, ...]
+    ) -> float | None:
+        """Score name elision from token tuples cached by the caller."""
         if (
             len(query_tokens) < 2
             or len(query_tokens) >= len(choice_tokens)
@@ -472,11 +500,9 @@ class SpanTagger:
         cutoff = float(cfg.get("action_cutoff", 0.82))
         margin = float(cfg.get("action_ambiguity_margin", 0.06))
         algorithm = str(cfg.get("algorithm", "damerau"))
-        phrases = list(self.action_phrase_to_keys)
-        if not phrases:
+        if self.action_batch is None:
             return []
-        phrase_lengths = {phrase: len(phrase_tokens(phrase)) for phrase in phrases}
-        max_tokens = max(phrase_lengths.values()) + int(cfg.get("max_extra_tokens", 1))
+        max_tokens = self.action_batch.max_tokens + 1
         exact_actions = [span for span in exact if span.tag == "action"]
         exact_names = [
             span
@@ -500,19 +526,13 @@ class SpanTagger:
                     continue
                 query = self._span_text(tokens, start, end)
                 query_len = end - start
-                choices = [
-                    phrase
-                    for phrase in phrases
-                    if abs(phrase_lengths[phrase] - query_len) <= 1
-                ]
-                if not choices:
-                    continue
-                matches = extract(
+                matches = self.action_batch.extract(
                     query,
-                    choices,
                     cutoff=cutoff,
                     limit=4,
                     algorithm=algorithm,
+                    query_tokens=query_len,
+                    extra_tokens=1,
                 )
                 semantic: list[tuple[str, float, str]] = []
                 for match in matches:
@@ -610,12 +630,10 @@ class SpanTagger:
 
         result: list[Span] = []
         for tag, choice_map in self.fuzzy_choices.items():
-            if not choice_map:
+            batch = self.fuzzy_batches[tag]
+            if batch is None:
                 continue
-            choice_lengths = {
-                choice: len(phrase_tokens(choice)) for choice in choice_map
-            }
-            max_tokens = max(choice_lengths.values()) + extra
+            max_tokens = batch.max_tokens + extra
             for start in range(len(tokens)):
                 for end in range(start + 1, min(len(tokens), start + max_tokens) + 1):
                     indexes = set(range(start, end))
@@ -627,25 +645,22 @@ class SpanTagger:
                     if len(query.replace(" ", "")) < 3:
                         continue
                     query_len = end - start
-                    choices = [
-                        choice
-                        for choice in choice_map
-                        if abs(choice_lengths[choice] - query_len) <= extra
-                    ]
-                    if not choices:
-                        continue
-                    matches = extract(
+                    matches = batch.extract(
                         query,
-                        choices,
                         cutoff=cutoffs[tag],
                         limit=limit,
                         algorithm=algorithm,
+                        query_tokens=query_len,
+                        extra_tokens=extra,
                     )
                     match_scores = {match.choice: match.score for match in matches}
                     match_sources = {match.choice: f"fuzzy_{tag}" for match in matches}
                     if tag == "name":
-                        for choice in choices:
-                            score = self._name_elision_score(query, choice)
+                        query_tokens = phrase_tokens(query)
+                        for choice in batch.eligible_choices(query_len, extra):
+                            score = self._name_elision_token_score(
+                                query_tokens, self.fuzzy_choice_tokens[tag][choice]
+                            )
                             if (
                                 score is not None
                                 and score >= cutoffs[tag]

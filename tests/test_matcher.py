@@ -367,6 +367,23 @@ def test_spoken_decimal_temperature(matcher):
     assert result.frames[0].slots["temperature"] == 20.5
 
 
+@pytest.mark.parametrize(
+    ("text", "temperature"),
+    [
+        ("set thermostat to -5 degrees", -5),
+        ("set thermostat to −5 degrees", -5),
+        ("set thermostat to minus five degrees", -5),
+        ("set thermostat to negative five point five degrees", -5.5),
+        ("set thermostat to plus five degrees", 5),
+    ],
+)
+def test_signed_temperature(matcher, text, temperature):
+    result = matcher.interpret(text)
+    assert result.accepted
+    assert result.frames[0].intent == "HassClimateSetTemperature"
+    assert result.frames[0].slots["temperature"] == temperature
+
+
 def test_qualitative_brightness(matcher):
     result = matcher.interpret("set bedroom brightness to maximum")
     assert result.accepted

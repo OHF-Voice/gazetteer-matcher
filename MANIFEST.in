@@ -1,3 +1,4 @@
 include Example.ipynb
 recursive-include script *.py
 recursive-include tests *.py *.yaml
+recursive-include src/gazetteer_matcher *.cpp

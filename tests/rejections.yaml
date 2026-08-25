@@ -43,6 +43,24 @@ cases:
   - sentence: bedroom fifty percent
     category: ambiguous_home_command
 
+  # Numeric values must retain their sign and fit Home Assistant's slot schema.
+  - sentence: set bedroom brightness to 150 percent
+    category: invalid_numeric_value
+  - sentence: set bedroom blinds to -20 percent
+    category: invalid_numeric_value
+  - sentence: set bedroom fan speed to 101 percent
+    category: invalid_numeric_value
+  - sentence: set living room volume to 100.5 percent
+    category: invalid_numeric_value
+  - sentence: decrease living room volume by minus 20 percent
+    category: invalid_numeric_value
+  - sentence: set a timer for -5 minutes
+    category: invalid_numeric_value
+  - sentence: set a timer for minus five minutes
+    category: invalid_numeric_value
+  - sentence: set a timer for zero minutes
+    category: invalid_numeric_value
+
   # Requests that belong to a conversational fallback, not an HA intent.
   - sentence: write a poem about my kitchen lights
     category: downstream_llm

@@ -100,14 +100,14 @@ def test_frames_carry_a_response_key_from_the_corpus(
     assert blinds.frames[0].response_key == "cover"
 
 
-def test_no_response_key_when_the_corpus_answers_two_ways(
+def test_unqualified_area_state_question_uses_any_response(
     matcher: GazetteerMatcher,
 ) -> None:
-    """Test a shape only the wording separates names no key of its own."""
+    """Test a plural area question asks whether any matching entity is on."""
     result = matcher.interpret("are the kitchen lights on")
 
     assert result.accepted
-    assert result.frames[0].response_key is None
+    assert result.frames[0].response_key == "any"
 
 
 @pytest.mark.parametrize(

@@ -75,6 +75,12 @@ Dependencies are only:
 - `unicode-rbnf`
 - `home-assistant-intents`
 
+A source install also attempts to build the self-contained C++17 fuzzy-scoring
+accelerator. It has no library dependencies beyond Python itself. If no C++
+compiler is available, installation continues with the behaviorally equivalent
+Python scorer. `gazetteer_matcher.fuzzy.native_available()` reports which one
+was loaded.
+
 ## Quick start
 
 ```python
@@ -566,9 +572,9 @@ one hundred and twenty seconds
 become a single `120` number span rather than a conjunction between two
 commands.
 
-## Pure-Python fuzzy matching
+## Fuzzy matching
 
-`gazetteer_matcher/fuzzy.py` implements:
+`gazetteer_matcher/fuzzy.py` provides the reference implementation of:
 
 - Levenshtein distance
 - optimal-string-alignment Damerau-Levenshtein distance
@@ -578,6 +584,16 @@ commands.
 
 The default is Damerau-Levenshtein because adjacent transpositions are common
 in noisy text/ASR-like output and names are short.
+
+When built, `_fuzzy_native.cpp` scores a reusable batch of normalized choices
+in C++. One Python-to-native call scores a complete token-length bucket, retains
+only the top matches, and releases the GIL while calculating distances. The
+Python implementation remains the fallback and the equivalence test corpus
+requires identical scores and ordering from both implementations.
+
+The tagger constructs the action, entity, area, and floor batches when its home
+is built. It also caches the token tuples used by name-elision scoring, avoiding
+per-utterance normalization of every configured name.
 
 Actions use a higher threshold than entity/location names. For opposing action
 families (`on/off`, `open/close`, `lock/unlock`, etc.), a close fuzzy tie is

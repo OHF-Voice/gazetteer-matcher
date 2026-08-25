@@ -4,6 +4,8 @@ numbers:
   max_cardinal: 10000
   max_ordinal: 100
   joiners: [and]
+  negative_signs: [minus, negative]
+  positive_signs: [plus, positive]
 
 fuzzy:
   algorithm: damerau
@@ -51,6 +53,7 @@ response_hints:
       name_state_floor: one_yesno
       name_where: where
       name_zone: one_yesno
+      domain_state_area: any
 
 skip_phrases:
   - the
@@ -153,7 +156,7 @@ device_classes:
   door:
     phrases: [door, doors]
     domains: [cover, binary_sensor]
-  garage_door:
+  garage:
     phrases: [garage door, garage doors]
     domains: [cover]
   blind:

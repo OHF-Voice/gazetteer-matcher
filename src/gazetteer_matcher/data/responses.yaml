@@ -176,7 +176,6 @@ device_classes:
   curtain: curtains
   door: doors
   garage: garage doors
-  garage_door: garage doors
   shade: shades
   shutter: shutters
   window: windows

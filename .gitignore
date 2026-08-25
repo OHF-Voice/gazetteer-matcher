@@ -15,6 +15,9 @@ env/
 build/
 dist/
 *.egg-info/
+*.so
+*.pyd
+*.dylib
 
 # Notebook and editor state
 .ipynb_checkpoints/

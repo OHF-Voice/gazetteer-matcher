@@ -2,9 +2,17 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from importlib import import_module
+from types import ModuleType
 from typing import Iterable
 
 _SPACE_RE = re.compile(r"\s+")
+
+_NATIVE: ModuleType | None
+try:
+    _NATIVE = import_module("gazetteer_matcher._fuzzy_native")
+except ImportError:
+    _NATIVE = None
 
 
 def normalize(text: str) -> str:
@@ -85,6 +93,110 @@ class Match:
     score: float
 
 
+def native_available() -> bool:
+    """Return whether the optional compiled batch scorer was imported."""
+    return _NATIVE is not None
+
+
+class ChoiceBatch:
+    """A reusable set of choices scored together, natively when available."""
+
+    def __init__(
+        self,
+        choices: Iterable[str],
+        *,
+        token_sort: bool = False,
+        use_native: bool = True,
+        token_lengths: Iterable[int] | None = None,
+    ) -> None:
+        self.choices = tuple(choices)
+        self.token_sort = token_sort
+        self.token_lengths = (
+            tuple(token_lengths)
+            if token_lengths is not None
+            else (-1,) * len(self.choices)
+        )
+        if len(self.token_lengths) != len(self.choices):
+            raise ValueError("choices and token_lengths must have equal lengths")
+        scoring_choices = tuple(self._scoring_text(choice) for choice in self.choices)
+        self._native = (
+            _NATIVE.compile_choices(scoring_choices, self.choices, self.token_lengths)
+            if use_native and _NATIVE is not None
+            else None
+        )
+
+    def _scoring_text(self, text: str) -> str:
+        normalized = normalize(text)
+        if self.token_sort:
+            return " ".join(sorted(normalized.split()))
+        return normalized
+
+    @property
+    def using_native(self) -> bool:
+        """Return whether this batch is backed by the compiled scorer."""
+        return self._native is not None
+
+    @property
+    def max_tokens(self) -> int:
+        """Return the largest configured token length, or zero when unspecified."""
+        return max((length for length in self.token_lengths if length >= 0), default=0)
+
+    def eligible_choices(
+        self, query_tokens: int | None, extra_tokens: int
+    ) -> list[str]:
+        """Return choices inside an optional token-length window."""
+        if query_tokens is None:
+            return list(self.choices)
+        return [
+            choice
+            for choice, length in zip(self.choices, self.token_lengths)
+            if abs(length - query_tokens) <= extra_tokens
+        ]
+
+    def extract(
+        self,
+        query: str,
+        *,
+        cutoff: float = 0.0,
+        limit: int = 3,
+        algorithm: str = "damerau",
+        query_tokens: int | None = None,
+        extra_tokens: int = 0,
+    ) -> list[Match]:
+        """Return the best choices with the same ordering as :func:`extract`."""
+        if algorithm not in {"levenshtein", "damerau"}:
+            raise ValueError(f"Unknown fuzzy algorithm: {algorithm}")
+        if limit <= 0:
+            return []
+
+        if self._native is not None:
+            native = _NATIVE
+            assert native is not None
+            matches = native.extract(
+                self._scoring_text(query),
+                self._native,
+                cutoff=cutoff,
+                limit=limit,
+                algorithm=algorithm,
+                query_tokens=query_tokens if query_tokens is not None else -1,
+                extra_tokens=extra_tokens,
+            )
+            return [
+                Match(choice=self.choices[index], score=score)
+                for index, score in matches
+            ]
+
+        scorer = token_sort_ratio if self.token_sort else ratio
+        matches = [
+            Match(choice=choice, score=scorer(query, choice, algorithm=algorithm))
+            for choice, length in zip(self.choices, self.token_lengths)
+            if query_tokens is None or abs(length - query_tokens) <= extra_tokens
+        ]
+        matches = [match for match in matches if match.score >= cutoff]
+        matches.sort(key=lambda match: (-match.score, len(match.choice), match.choice))
+        return matches[:limit]
+
+
 def extract(
     query: str,
     choices: Iterable[str],
@@ -94,11 +206,6 @@ def extract(
     algorithm: str = "damerau",
     token_sort: bool = False,
 ) -> list[Match]:
-    scorer = token_sort_ratio if token_sort else ratio
-    matches = [
-        Match(choice=choice, score=scorer(query, choice, algorithm=algorithm))
-        for choice in choices
-    ]
-    matches = [match for match in matches if match.score >= cutoff]
-    matches.sort(key=lambda match: (-match.score, len(match.choice), match.choice))
-    return matches[:limit]
+    return ChoiceBatch(choices, token_sort=token_sort).extract(
+        query, cutoff=cutoff, limit=limit, algorithm=algorithm
+    )

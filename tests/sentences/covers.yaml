@@ -1,6 +1,15 @@
 language: en
 
 cases:
+  - sentences:
+      - which garage doors are closed
+      - tell me which garage doors are shut
+    frames:
+      - intent: HassGetState
+        combination: device_class_state
+        response_key: which
+        slots: {domain: cover, device_class: garage, state: closed}
+
   - sentence: open the drapes
     context_area: Living Room
     frames:

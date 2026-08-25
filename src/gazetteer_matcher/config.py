@@ -111,14 +111,17 @@ def normalize_tokens(text: str) -> list[Token]:
 
     # Keep decimal literals together. A comma is accepted as a decimal
     # separator here; NumberWordTrie normalizes it before parsing.
-    token_re = re.compile(r"\d+(?:[.,]\d+)?|[\w]+(?:['’][\w]+)?|%", re.UNICODE)
+    token_re = re.compile(
+        r"(?<!\w)[+\-−]?\d+(?:[.,]\d+)?|[\w]+(?:['’][\w]+)?|%",
+        re.UNICODE,
+    )
     tokens: list[Token] = []
     for index, match in enumerate(token_re.finditer(text)):
         raw = match.group(0)
         tokens.append(
             Token(
                 index=index,
-                text=raw.casefold().replace("’", "'"),
+                text=raw.casefold().replace("’", "'").replace("−", "-"),
                 raw=raw,
                 start_char=match.start(),
                 end_char=match.end(),

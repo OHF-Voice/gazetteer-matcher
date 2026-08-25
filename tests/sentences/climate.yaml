@@ -41,3 +41,12 @@ cases:
         combination: name_only
         response_key: default
         slots: {name: climate.ecobee}
+
+  - sentences:
+      - set thermostat to -5 degrees
+      - set thermostat to minus five degrees
+    frames:
+      - intent: HassClimateSetTemperature
+        combination: name_temperature
+        response_key: default
+        slots: {name: climate.ecobee, temperature: -5}

@@ -850,6 +850,64 @@ class GazetteerMatcher:
         marker_values = {
             span.value for span in local_spans if span.tag == "slot_marker"
         }
+
+        # Home Assistant percentage slots are integer percentages. Reject bad
+        # structured values even when a competing frame would otherwise ignore
+        # them as unexplained text.
+        for span in local_spans:
+            if span.tag == "percent_value" and (
+                not isinstance(span.value, (int, float))
+                or not float(span.value).is_integer()
+                or not 0 <= span.value <= 100
+            ):
+                violations.append("percentage must be an integer from 0 to 100")
+            if span.tag.startswith("duration_") and (
+                not isinstance(span.value, (int, float))
+                or not float(span.value).is_integer()
+                or span.value < 0
+            ):
+                violations.append("timer duration must be a non-negative integer")
+
+        temperature = selected.get("temperature")
+        if temperature is not None and intent == "HassLightSet":
+            value = temperature.value
+            if (
+                not isinstance(value, (int, float))
+                or not float(value).is_integer()
+                or value < 0
+            ):
+                violations.append(
+                    "light color temperature must be a non-negative integer"
+                )
+
+        duration_values = {
+            slot: option.value
+            for slot, option in selected.items()
+            if slot in _DURATION_SLOT_TO_TAG
+        }
+        if intent == "HassStartTimer" and duration_values:
+            total_seconds = sum(
+                duration_values.get(slot, 0) * multiplier
+                for slot, multiplier in (
+                    ("hours", 3600),
+                    ("minutes", 60),
+                    ("seconds", 1),
+                )
+            )
+            if total_seconds <= 0:
+                violations.append("timer duration must be greater than zero")
+        elif intent in {"HassIncreaseTimer", "HassDecreaseTimer"}:
+            adjustment_seconds = sum(
+                duration_values.get(slot, 0) * multiplier
+                for slot, multiplier in (
+                    ("hours", 3600),
+                    ("minutes", 60),
+                    ("seconds", 1),
+                )
+            )
+            if duration_values and adjustment_seconds <= 0:
+                violations.append("timer adjustment must be greater than zero")
+
         for required_slot in action_spec.get("require_slots") or []:
             if required_slot not in selected:
                 violations.append(f"missing required slot {required_slot!r}")

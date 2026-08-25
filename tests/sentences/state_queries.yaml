@@ -89,6 +89,7 @@ cases:
 
   - sentences:
       - are any kitchen lights on
+      - are the kitchen lights on
       - check whether any kitchen lights are on
     frames:
       - intent: HassGetState

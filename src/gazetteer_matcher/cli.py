@@ -9,17 +9,18 @@ from .debug import render_interpretation, render_json, render_spans
 from .matcher import GazetteerMatcher
 
 
-def _add_paths(parser: argparse.ArgumentParser) -> None:
+def _add_paths(parser: argparse.ArgumentParser, *, include_home: bool = True) -> None:
     parser.add_argument("--vocabulary", type=Path, help="Override vocabulary.yaml")
-    parser.add_argument("--home", type=Path, help="Override home.yaml")
+    if include_home:
+        parser.add_argument("--home", type=Path, help="Load a home gazetteer")
     parser.add_argument("--responses", type=Path, help="Override responses.yaml")
 
 
 def _matcher(args: argparse.Namespace) -> GazetteerMatcher:
     return GazetteerMatcher(
-        vocabulary_path=args.vocabulary,
-        home_path=args.home,
-        responses_path=args.responses,
+        vocabulary_path=getattr(args, "vocabulary", None),
+        home_path=getattr(args, "home", None),
+        responses_path=getattr(args, "responses", None),
     )
 
 
@@ -41,7 +42,14 @@ def main(argv: list[str] | None = None) -> int:
         "--debug", action="store_true", help="Show spans and candidate frames"
     )
     match_parser.add_argument("--json", action="store_true", help="Emit JSON")
-    _add_paths(match_parser)
+    _add_paths(match_parser, include_home=False)
+    home_group = match_parser.add_mutually_exclusive_group(required=True)
+    home_group.add_argument("--home", type=Path, help="Load a home gazetteer")
+    home_group.add_argument(
+        "--empty-home",
+        action="store_true",
+        help="Interpret without entities, areas, or floors",
+    )
 
     spans_parser = subparsers.add_parser("spans", help="Show lexical spans only")
     spans_parser.add_argument("text")
@@ -50,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     support_parser = subparsers.add_parser(
         "support", help="Report intent-metadata combination coverage"
     )
-    _add_paths(support_parser)
+    _add_paths(support_parser, include_home=False)
 
     args = parser.parse_args(argv)
     matcher = _matcher(args)

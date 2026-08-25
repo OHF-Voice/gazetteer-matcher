@@ -17,13 +17,20 @@ number parsing, positive sentence fixtures, and hard rejection fixtures.
 Interpret normally:
 
 ```bash
-gazetteer-match match 'turn on the kitchen and hallway lights'
+gazetteer-match match 'turn on the kitchen and hallway lights' \
+  --home tests/home.yaml
 ```
+
+`match` requires an explicit home choice. Use `--home PATH` for home-specific
+names and locations, or `--empty-home` for generic intents such as timers,
+date/time, weather, and unscoped state questions. This prevents an omitted home
+from silently behaving like a configured but empty installation.
 
 Supply location context:
 
 ```bash
 gazetteer-match match 'turn off the lights' \
+  --home tests/home.yaml \
   --context-area Kitchen \
   --context-floor 'Ground Floor'
 ```
@@ -32,13 +39,15 @@ Inspect tokens, spans, candidates, costs, inheritance, violations, and
 unexplained tokens:
 
 ```bash
-gazetteer-match match 'flick on the kichen lights' --debug
+gazetteer-match match 'flick on the kichen lights' \
+  --home tests/home.yaml --debug
 ```
 
 Emit the same information as JSON:
 
 ```bash
-gazetteer-match match 'open the bedroom blinds' --debug --json
+gazetteer-match match 'open the bedroom blinds' \
+  --home tests/home.yaml --debug --json
 ```
 
 Other useful commands:
@@ -50,7 +59,9 @@ gazetteer-match support
 
 The `spans` command shows lexical recognition without frame generation.
 `support` summarizes which non-wildcard Home Assistant slot combinations are
-reachable through configured actions.
+reachable through configured actions and therefore does not accept `--home`.
+`spans` keeps `--home` optional so built-in vocabulary can be inspected without
+a gazetteer; pass it when entity, area, or floor spans matter.
 
 ## Positive sentence fixtures
 

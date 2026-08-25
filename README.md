@@ -19,7 +19,6 @@ upstream intent schema.
 - **Explicit conversational follow-ups**: `turn on the kitchen lights` followed
   by `turn them off`, or `is the front door locked?` followed by `lock it`.
 - **Natural state questions** that preserve `any`, `all`, `which`, and
-  `how many` response semantics.
 - **Conservative, schema-backed validation** with structured error categories
   and concise responses for ambiguous, unsupported, and out-of-range requests.
 
@@ -143,17 +142,23 @@ rebuilding the language vocabulary, intent catalog, or shared number trie.
 ## CLI
 
 ```bash
-gazetteer-match match 'turn on the kitchen and hallway lights'
-gazetteer-match match 'flick on the kichen lights' --debug
-gazetteer-match match 'open the bedroom blinds' --debug --json
+gazetteer-match match 'turn on the kitchen and hallway lights' \
+  --home my-home.yaml
+gazetteer-match match 'flick on the kichen lights' \
+  --home my-home.yaml --debug
+gazetteer-match match 'open the bedroom blinds' \
+  --home my-home.yaml --debug --json
 gazetteer-match spans 'flik the bedroom lights on'
 gazetteer-match support
 ```
 
-Supply `--home`, `--vocabulary`, or `--responses` to override any data file.
-Location context is available through `--context-area` and `--context-floor`.
-See the [development guide](docs/development.md) for the complete debugging and
-coverage workflow.
+`match` requires either `--home PATH` or an explicit `--empty-home`. The latter
+is useful for generic timers, date/time, weather, and state questions that need
+no home-specific names. `spans` keeps `--home` optional, while `support` does
+not use a home gazetteer. Supply `--vocabulary` or `--responses` to override the
+language data. Location context is available through `--context-area` and
+`--context-floor`. See the [development guide](docs/development.md) for the
+complete debugging and coverage workflow.
 
 ## Design principle
 

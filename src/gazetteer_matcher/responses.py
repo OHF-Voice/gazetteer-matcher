@@ -5,6 +5,13 @@ from typing import Any, Iterable
 from .models import FrameCandidate, Span
 
 _TARGET_SLOTS = ("name", "area", "floor", "domain", "device_class")
+_PERCENTAGE_SLOTS = (
+    "volume_level",
+    "volume_step",
+    "brightness",
+    "position",
+    "percentage",
+)
 
 
 class RejectionResponder:
@@ -143,6 +150,13 @@ class RejectionResponder:
         actions = actions or []
         fields = self._target_fields(spans, candidates)
 
+        if code == "invalid_percentage" and candidates:
+            labels = self.responses.get("settings") or {}
+            for slot in _PERCENTAGE_SLOTS:
+                if slot in candidates[0].slots and labels.get(slot):
+                    fields["setting"] = str(labels[slot])
+                    break
+
         action_key = candidates[0].action if candidates else None
         if action_key is None and actions:
             action_key = str(actions[0].value)
@@ -175,6 +189,8 @@ class RejectionResponder:
                 template_key = "unsupported_action"
         elif code == "unexplained" and fields.get("target"):
             template_key = "unexplained_target"
+        elif code == "invalid_percentage" and not fields.get("setting"):
+            template_key = "invalid_percentage_generic"
 
         generic = str(self.templates["generic"])
         template = str(self.templates.get(template_key) or generic)

@@ -236,6 +236,58 @@ class GazetteerMatcher:
             return 0
         return self._name_context_rank(span, context)
 
+    def _lexical_duplicate_name_context(
+        self,
+        name_span: Span,
+        local_spans: list[Span],
+    ) -> tuple[_ResolvedContext | None, tuple[Span, ...]]:
+        """Resolve duplicate name text with an explicit area or floor phrase.
+
+        Some upstream name-only combinations cannot carry a location slot.  A
+        phrase such as ``bedroom TV`` must still be able to select one of two
+        entities named ``TV`` without adding ``area`` to the resulting frame.
+        Only non-overlapping, unambiguous location spans qualify the name.
+        """
+        name_indexes = self._span_indexes(name_span)
+        duplicate = any(
+            span.tag == "name"
+            and span.value != name_span.value
+            and self._span_indexes(span) == name_indexes
+            for span in local_spans
+        )
+        if not duplicate:
+            return None, ()
+
+        qualifiers: dict[str, Span] = {}
+        for tag in ("area", "floor"):
+            candidates = [
+                span
+                for span in local_spans
+                if span.tag == tag and not (self._span_indexes(span) & name_indexes)
+            ]
+            exact = [span for span in candidates if not span.source.startswith("fuzzy")]
+            candidates = exact or candidates
+            values = {str(span.value) for span in candidates}
+            if len(values) == 1:
+                qualifiers[tag] = min(candidates, key=self._span_preference)
+
+        area_span = qualifiers.get("area")
+        floor_span = qualifiers.get("floor")
+        if area_span is None and floor_span is None:
+            return None, ()
+
+        area = str(area_span.value) if area_span is not None else None
+        floor = str(floor_span.value) if floor_span is not None else None
+        if area is not None:
+            area_spec = (self.config.home.get("areas") or {}).get(area) or {}
+            area_floor = area_spec.get("floor")
+            if floor is not None and area_floor and floor != str(area_floor):
+                return None, ()
+            if floor is None and area_floor:
+                floor = str(area_floor)
+
+        return _ResolvedContext(area=area, floor=floor), tuple(qualifiers.values())
+
     @staticmethod
     def _span_indexes(span: Span) -> set[int]:
         explicit = span.meta.get("consumed_indexes")
@@ -1241,6 +1293,17 @@ class GazetteerMatcher:
         consumed = self._consumed_indexes(
             intent, combo, selected, action_span, local_spans, segment
         )
+        ranking_context = context
+        lexical_qualifiers: tuple[Span, ...] = ()
+        selected_name = selected.get("name")
+        if selected_name and selected_name.spans:
+            lexical_context, lexical_qualifiers = self._lexical_duplicate_name_context(
+                selected_name.spans[0], local_spans
+            )
+            if lexical_context is not None:
+                ranking_context = lexical_context
+                for qualifier in lexical_qualifiers:
+                    consumed.update(self._span_indexes(qualifier))
         start, end = segment
         unexplained = [index for index in range(start, end) if index not in consumed]
         important_indexes: set[int] = set()
@@ -1274,12 +1337,11 @@ class GazetteerMatcher:
             )
         )
         context_rank = 0
-        selected_name = selected.get("name")
         if selected_name and selected_name.spans:
             context_rank = self._duplicate_name_context_rank(
                 selected_name.spans[0],
                 (span for span in local_spans if span.tag == "name"),
-                context,
+                ranking_context,
             )
         cost = (
             len(violations),
@@ -1585,6 +1647,11 @@ class GazetteerMatcher:
         # Prefer the neutral partial-understanding response in that case.
         if any("scope conflicts" in violation for violation in best.violations):
             return "conflicting_scope"
+        if not best.unexplained_tokens and any(
+            violation == "percentage must be an integer from 0 to 100"
+            for violation in best.violations
+        ):
+            return "invalid_percentage"
         if best.unexplained_tokens:
             return "unexplained"
         if any(

@@ -1,3 +1,4 @@
+import pytest
 import yaml
 
 from gazetteer_matcher import GazetteerMatcher
@@ -67,6 +68,26 @@ def test_ambiguous_and_conflicting_scope_responses_are_concise(matcher):
     conflicting = matcher.interpret("turn off the kitchen lights everywhere")
     assert conflicting.rejection_code == "conflicting_scope"
     assert conflicting.response == ("Sorry, that request names conflicting locations.")
+
+
+@pytest.mark.parametrize(
+    ("text", "setting"),
+    [
+        ("set bedroom TV volume to 1000%", "volume"),
+        ("set bedroom brightness to 150 percent", "brightness"),
+        ("set bedroom blinds to -20 percent", "position"),
+        ("set bedroom fan speed to 101 percent", "fan speed"),
+    ],
+)
+def test_invalid_percentage_response_names_setting(matcher, text, setting):
+    result = matcher.interpret(text)
+
+    assert not result.accepted
+    assert result.rejection_code == "invalid_percentage"
+    assert result.response == (
+        f"Sorry, the {setting} value must be a whole-number percentage "
+        "between 0% and 100%."
+    )
 
 
 def test_missing_anaphora_target_gets_pronoun_response(matcher):

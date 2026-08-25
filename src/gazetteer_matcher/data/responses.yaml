@@ -15,11 +15,20 @@ templates:
   unexplained: "Sorry, I understood part of that, but not the whole request."
   ambiguous: "Sorry, that could mean more than one thing. Please be more specific."
   conflicting_scope: "Sorry, that request names conflicting locations."
+  invalid_percentage: "Sorry, the {setting} value must be a whole-number percentage between 0% and 100%."
+  invalid_percentage_generic: "Sorry, percentage values must be whole numbers between 0% and 100%."
   anaphora_missing_target: "Sorry, I'm not sure what {pronoun} refers to."
   anaphora_multiple_targets: "Sorry, {pronoun} could refer to more than one previous target."
   anaphora_singular_group: "Sorry, {pronoun} refers to a group, not one device."
   anaphora_explicit_target: "Sorry, I can't combine {pronoun} with another target."
   anaphora_multiple_pronouns: "Sorry, I found more than one follow-up reference."
+
+settings:
+  volume_level: volume
+  volume_step: volume adjustment
+  brightness: brightness
+  position: position
+  percentage: fan speed
 
 target_templates:
   named: "'{name}'"

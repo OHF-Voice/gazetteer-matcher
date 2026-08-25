@@ -147,6 +147,13 @@ cases:
         response_key: default
         slots: {name: media_player.bedroom_tv, volume_level: 90}
 
+  - sentence: set bedroom TV volume to 100%
+    frames:
+      - intent: HassSetVolume
+        combination: name_only
+        response_key: default
+        slots: {name: media_player.bedroom_tv, volume_level: 100}
+
   - sentence: turn TV volume down to 90%
     context_area: Living Room
     frames:

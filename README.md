@@ -1,79 +1,52 @@
-# gazetteer-matcher
+# Gazetteer Matcher
 
-An MVP, constraint-driven intent recognizer for Home Assistant voice commands.
-It is deliberately **not** a statistical intent classifier. It tags lexical
-spans, generates possible semantic frames, validates those frames against
-the Home Assistant intent metadata, and rejects interpretations that leave
-content unexplained.
+An English language constraint-driven intent recognizer for Home Assistant voice
+commands.
 
-The project is intended as an experiment/prototype, not a drop-in replacement
-for HassIL.
+It tags lexical spans, generates possible semantic frames, validates those
+frames against the Home Assistant intent metadata, and rejects interpretations
+that leave content unexplained.
 
-## Design goals
+## Features
 
-- Keep language vocabulary in YAML rather than Python.
-- Treat fuzzy matching as tolerant gazetteer lookup, not an intent score.
-- Use pure-Python edit-distance algorithms; there is no RapidFuzz dependency.
-- Use `unicode-rbnf`/CLDR output as the source for number-word forms.
-- Support areas, floors, entity names/aliases, domains, device classes, states,
-  colors, numeric properties, timer durations, and selected residual text slots.
-- Handle conjunctions by splitting coordinated segments and conservatively
-  inheriting actions/targets/properties when the omitted value is unique.
-- Validate against the real Home Assistant slot-combination catalog.
-- Prefer lexicographic costs (violations, unexplained content, fuzziness,
-  inheritance, etc.) over arbitrary weighted evidence scores.
-- Make every intermediate span and candidate frame inspectable.
+The gazetteer matcher complements the [builtin intent matcher][intents] in Home
+Assistant, which recognizes exact phrases and names.
 
-## The intent metadata catalog
+Additional features beyond the builtin matcher include:
 
-The `home-assistant-intents` dependency provides the upstream Home Assistant
-slot-combination catalog. `GazetteerMatcher` loads it automatically with
-`get_intent_info()`; no catalog file, environment variable, or CLI option is
-required. Construction raises `RuntimeError` if the installed dependency does
-not contain its generated metadata instead of silently using an empty catalog.
-
-Callers that need an explicit catalog for testing may still pass an `intents`
-dictionary to `GazetteerMatcher` or `MatcherConfig.load`.
-
-### Reference numbers
-
-Against `home-assistant-intents` 2026.8.24:
-
-- 217 total slot combinations
-- 26 combinations with explicit `wildcard_slots` (excluded)
-- 191 non-wildcard combinations
-- 36 intents containing those 191 non-wildcard combinations
-
-The default `vocabulary.yaml` has at least one action mapping to all 36 of those
-intents, so `gazetteer-match support` reports all 191 as *schema reachable*.
-That does **not** mean the MVP has exhaustive English phrasing for all 191
-combinations. It means the generic slot machinery can construct/validate them
-when the required lexical evidence is available. The timer/media/free-text
-edges in particular are intentionally MVP-level.
-
-These counts are tied to that package release; a different catalog revision
-will move them, along with the `test_support_catalog` assertions.
+- Fuzzy name matching
+    - "turn on ceiling lights in the kitchen" -> matches "Kitchen Ceiling Lights"
+    - "turn off **bedrom** lights" -> matches "Bedroom"
+- Multiple targets
+    - "turn on living room and bedroom lights"
+- Multiple intents
+    - "turn off the lights and open the curtains"
+- Multple actions on a single target
+    - "turn on the TV and set its volume to 50%"
+- Refer to previous targets
+    - "turn on the lights" followed by "turn them off"
+    - "is the front door locked?" followed by "lock it"
+- Meaningful error messages
+    - "clean the Ecobee" responds with "Sorry, I see you're targeting 'EcoBee' (a thermostat), but I don't know what action to take."
 
 ## Install
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -e .
+pip install gazetteer-matcher
 ```
 
 For development:
 
 ```bash
-pip install -e '.[dev]'
+pip install 'gazetteer-matcher[dev]'
 pytest
 ```
 
 Dependencies are only:
 
-- `PyYAML`
-- `unicode-rbnf`
 - `home-assistant-intents`
+- `unicode-rbnf`
+- `PyYAML`
 
 A source install also attempts to build the self-contained C++17 fuzzy-scoring
 accelerator. It has no library dependencies beyond Python itself. If no C++
@@ -101,28 +74,7 @@ for frame in result.frames:
     print(frame.intent, frame.combination, frame.slots, frame.response_key)
 ```
 
-The default home is empty. Home configuration may be supplied directly as a
-dictionary or loaded from a YAML path. The `*_path` keywords remain available
-for compatibility:
-
-```python
-matcher = GazetteerMatcher(
-    home={
-        "areas": {"kitchen": {"name": "Kitchen"}},
-        "floors": {},
-        "entities": {
-            "light.kitchen": {
-                "name": "Kitchen Light",
-                "domain": "light",
-                "area": "kitchen",
-            }
-        },
-    },
-    responses="my-responses.yaml",
-)
-```
-
-With this home configuration, the quick-start example yields approximately:
+Output:
 
 ```text
 HassTurnOn area_domain {'area': 'kitchen', 'domain': 'light'}
@@ -148,37 +100,6 @@ Location context also ranks otherwise identical entity names. For example,
 when several areas contain an entity named `Ceiling Light`, the entity in the
 context area wins; context floor is a secondary fallback. Without context the
 same duplicate-name match remains ambiguous.
-
-## Embedding in an application
-
-### A home that changes while you run
-
-`set_home` replaces the gazetteer without rebuilding anything else. Only the
-span tagger and the rejection wording depend on the home; the vocabulary, the
-intent catalog and the number-word trie are left alone, so this is orders of
-magnitude cheaper than constructing a new matcher:
-
-```python
-matcher.set_home(home_read_from_wherever_it_lives)
-```
-
-An application whose entities can be renamed while it runs should hold one
-matcher and call this, rather than build a new one each time.
-
-`interpret` reads only, so several threads may call it at once. `set_home`
-writes, and interpretations already in flight keep the tagger they started
-with; serialize it against them if that matters.
-
-### Saying back what was acted on
-
-Frames carry the ids the home was keyed by, since those are what an application
-acts on. `display_name` is the other direction:
-
-```python
-matcher.display_name("name", "cover.bedroom_blinds")   # "Bedroom Blinds"
-matcher.display_name("area", "kitchen")                # "Kitchen"
-matcher.display_name("brightness", 50)                 # "50", unchanged
-```
 
 ### Response keys
 
@@ -717,3 +638,6 @@ It additionally enforces:
 - explicit combination cues configured in YAML
 - no incompatible reuse of the same lexical evidence for multiple slots
 - separate limits for unexplained semantic and unmatched content
+
+<!-- Links -->
+[intents]: https://github.com/OHF-Voice/intents

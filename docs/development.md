@@ -179,6 +179,7 @@ excluded.
 
 Before release, run the tests and configured static tools, build both the wheel
 and source distribution, install the wheel into a clean environment, and check
-the artifacts with Twine. Native wheels should be exercised on every supported
-Python/platform target; source installation must retain the Python fallback
-when no compiler is available.
+the artifacts with Twine. The native extension uses CPython's 3.11 Limited API,
+so release builds produce one `cp311-abi3` wheel per platform and architecture.
+Exercise that wheel on the oldest and newest supported Python versions. Source
+installation must retain the Python fallback when no compiler is available.

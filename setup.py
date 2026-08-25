@@ -1,5 +1,7 @@
 """Build the optional native fuzzy-scoring accelerator."""
 
+import os
+
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
@@ -20,8 +22,11 @@ setup(
             "gazetteer_matcher._fuzzy_native",
             ["src/gazetteer_matcher/_fuzzy_native.cpp"],
             language="c++",
-            optional=True,
+            define_macros=[("Py_LIMITED_API", "0x030B0000")],
+            py_limited_api=True,
+            optional=os.environ.get("CIBUILDWHEEL") != "1",
         )
     ],
     cmdclass={"build_ext": BuildExt},
+    options={"bdist_wheel": {"py_limited_api": "cp311"}},
 )

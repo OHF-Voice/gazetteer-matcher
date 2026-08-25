@@ -41,9 +41,10 @@ bool unicode_to_u32(PyObject *value, std::u32string &result) {
         return false;
     }
 
-    const Py_ssize_t length = PyUnicode_GET_LENGTH(value);
-    const int kind = PyUnicode_KIND(value);
-    const void *data = PyUnicode_DATA(value);
+    const Py_ssize_t length = PyUnicode_GetLength(value);
+    if (length < 0) {
+        return false;
+    }
     try {
         result.resize(static_cast<std::size_t>(length));
     } catch (const std::bad_alloc &) {
@@ -51,10 +52,23 @@ bool unicode_to_u32(PyObject *value, std::u32string &result) {
         return false;
     }
     for (Py_ssize_t index = 0; index < length; ++index) {
-        result[static_cast<std::size_t>(index)] =
-            static_cast<char32_t>(PyUnicode_READ(kind, data, index));
+        const Py_UCS4 character = PyUnicode_ReadChar(value, index);
+        if (character == static_cast<Py_UCS4>(-1)) {
+            return false;
+        }
+        result[static_cast<std::size_t>(index)] = static_cast<char32_t>(character);
     }
     return true;
+}
+
+Py_ssize_t fast_sequence_size(PyObject *sequence) {
+    return PyList_Check(sequence) ? PyList_Size(sequence)
+                                  : PyTuple_Size(sequence);
+}
+
+PyObject *fast_sequence_item(PyObject *sequence, Py_ssize_t index) {
+    return PyList_Check(sequence) ? PyList_GetItem(sequence, index)
+                                  : PyTuple_GetItem(sequence, index);
 }
 
 class DistanceWorkspace {
@@ -171,9 +185,9 @@ PyObject *compile_choices(PyObject *, PyObject *args) {
         return nullptr;
     }
 
-    const Py_ssize_t length = PySequence_Fast_GET_SIZE(scoring);
-    if (PySequence_Fast_GET_SIZE(original) != length ||
-        PySequence_Fast_GET_SIZE(lengths) != length) {
+    const Py_ssize_t length = fast_sequence_size(scoring);
+    if (fast_sequence_size(original) != length ||
+        fast_sequence_size(lengths) != length) {
         Py_DECREF(scoring);
         Py_DECREF(original);
         Py_DECREF(lengths);
@@ -202,7 +216,7 @@ PyObject *compile_choices(PyObject *, PyObject *args) {
     for (Py_ssize_t index = 0; index < length; ++index) {
         Choice &choice = batch->choices[static_cast<std::size_t>(index)];
         const long token_length =
-            PyLong_AsLong(PySequence_Fast_GET_ITEM(lengths, index));
+            PyLong_AsLong(fast_sequence_item(lengths, index));
         if (token_length == -1 && PyErr_Occurred()) {
             delete batch;
             Py_DECREF(scoring);
@@ -211,9 +225,8 @@ PyObject *compile_choices(PyObject *, PyObject *args) {
             return nullptr;
         }
         choice.token_length = static_cast<int>(token_length);
-        if (!unicode_to_u32(PySequence_Fast_GET_ITEM(scoring, index),
-                            choice.scoring) ||
-            !unicode_to_u32(PySequence_Fast_GET_ITEM(original, index),
+        if (!unicode_to_u32(fast_sequence_item(scoring, index), choice.scoring) ||
+            !unicode_to_u32(fast_sequence_item(original, index),
                             choice.original)) {
             delete batch;
             Py_DECREF(scoring);
@@ -340,7 +353,10 @@ PyObject *extract_matches(PyObject *, PyObject *args, PyObject *kwargs) {
             Py_DECREF(result);
             return nullptr;
         }
-        PyList_SET_ITEM(result, index, item);
+        if (PyList_SetItem(result, index, item) < 0) {
+            Py_DECREF(result);
+            return nullptr;
+        }
     }
     return result;
 }

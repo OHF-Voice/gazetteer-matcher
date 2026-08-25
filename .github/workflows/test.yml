@@ -81,7 +81,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.11"
           cache: pip
 
       - name: Install packaging tools
@@ -93,6 +93,10 @@ jobs:
       - name: Check distribution metadata
         run: python -m twine check dist/*
 
+      - name: Verify abi3 wheel tag
+        shell: bash
+        run: test "$(find dist -maxdepth 1 -name '*-cp311-abi3-*.whl' | wc -l)" -eq 1
+
       - name: Smoke-test wheel installation
         shell: bash
         run: |
@@ -101,6 +105,18 @@ jobs:
           /tmp/gazetteer-matcher-wheel-test/bin/python -c \
             "from gazetteer_matcher.fuzzy import native_available; assert native_available()"
           /tmp/gazetteer-matcher-wheel-test/bin/gazetteer-match support
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Smoke-test abi3 wheel on newest supported Python
+        shell: bash
+        run: |
+          python -m venv /tmp/gazetteer-matcher-abi3-test
+          /tmp/gazetteer-matcher-abi3-test/bin/python -m pip install dist/*.whl
+          /tmp/gazetteer-matcher-abi3-test/bin/python -c \
+            "from gazetteer_matcher.fuzzy import native_available; assert native_available()"
 
       - name: Smoke-test source fallback without a compiler
         shell: bash

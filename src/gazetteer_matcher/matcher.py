@@ -838,24 +838,12 @@ class GazetteerMatcher:
 
         span = anaphor_span
         if "name" in target.slots:
-            entity_id = str(target.slots["name"])
-            entity = (self.config.home.get("entities") or {}).get(entity_id)
-            if entity is None:
-                return None
-            entity_area = entity.get("area")
-            area = (self.config.home.get("areas") or {}).get(entity_area) or {}
-            span = replace(
-                anaphor_span,
-                meta={
-                    **anaphor_span.meta,
-                    "entity_id": entity_id,
-                    "name": entity.get("name"),
-                    "domain": entity.get("domain") or entity_id.split(".", 1)[0],
-                    "device_class": entity.get("device_class"),
-                    "area": entity_area,
-                    "floor": entity.get("floor") or area.get("floor"),
-                },
+            entity_span = self._entity_reference_span(
+                anaphor_span, str(target.slots["name"])
             )
+            if entity_span is None:
+                return None
+            span = entity_span
 
         return {
             slot: SlotOption(
@@ -868,6 +856,47 @@ class GazetteerMatcher:
             )
             for slot in combo.slots
         }
+
+    def _entity_reference_span(self, span: Span, entity_id: str) -> Span | None:
+        """Attach an inherited entity's home metadata to reference wording."""
+        entity = (self.config.home.get("entities") or {}).get(entity_id)
+        if entity is None:
+            return None
+        entity_area = entity.get("area")
+        area = (self.config.home.get("areas") or {}).get(entity_area) or {}
+        return replace(
+            span,
+            meta={
+                **span.meta,
+                "entity_id": entity_id,
+                "name": entity.get("name"),
+                "domain": entity.get("domain") or entity_id.split(".", 1)[0],
+                "device_class": entity.get("device_class"),
+                "area": entity_area,
+                "floor": entity.get("floor") or area.get("floor"),
+            },
+        )
+
+    def _coordination_slot_option(
+        self,
+        slot: str,
+        value: Any,
+        reference_span: Span,
+    ) -> SlotOption | None:
+        """Materialize one slot selected by a coordinated possessive."""
+        if slot == "name":
+            enriched = self._entity_reference_span(reference_span, str(value))
+            if enriched is None:
+                return None
+            reference_span = enriched
+        return SlotOption(
+            slot=slot,
+            value=value,
+            spans=(reference_span,),
+            source="coordination_reference",
+            inherited=True,
+            allow_overlap=True,
+        )
 
     @staticmethod
     def _options_overlap(options: Iterable[SlotOption]) -> bool:
@@ -1467,11 +1496,16 @@ class GazetteerMatcher:
         context: _ResolvedContext,
         anaphor_span: Span | None = None,
         previous_target: TargetReference | None = None,
+        coordination_target: dict[str, Any] | None = None,
     ) -> list[FrameCandidate]:
         action_key = str(action_span.value)
         action_spec = self.actions.get(action_key) or {}
         result: list[FrameCandidate] = []
         local_spans = [span for span in spans if self._in_segment(span, segment)]
+        coordination_span = next(
+            (span for span in local_spans if span.tag == "coordination_reference"),
+            None,
+        )
 
         for intent in action_spec.get("intents") or []:
             for combo in self.catalog.combinations(intent):
@@ -1505,17 +1539,29 @@ class GazetteerMatcher:
                 option_lists: list[list[SlotOption]] = []
                 impossible = False
                 for slot in combo.slots:
-                    options = self._slot_options(
-                        slot,
-                        combo,
-                        tokens,
-                        visible_spans,
-                        local_spans,
-                        action_span,
-                        action_spec,
-                        segment,
-                        context,
-                    )
+                    if (
+                        coordination_target
+                        and coordination_span is not None
+                        and slot in coordination_target
+                    ):
+                        option = self._coordination_slot_option(
+                            slot,
+                            coordination_target[slot],
+                            coordination_span,
+                        )
+                        options = [option] if option is not None else []
+                    else:
+                        options = self._slot_options(
+                            slot,
+                            combo,
+                            tokens,
+                            visible_spans,
+                            local_spans,
+                            action_span,
+                            action_spec,
+                            segment,
+                            context,
+                        )
                     if not options:
                         impossible = True
                         break
@@ -1948,6 +1994,7 @@ class GazetteerMatcher:
                         context,
                         anaphor_span,
                         previous_target,
+                        coordination_target,
                     )
                 )
             if required_target:

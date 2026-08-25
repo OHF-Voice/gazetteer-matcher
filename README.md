@@ -1,39 +1,38 @@
 # Gazetteer Matcher
 
-An English language constraint-driven intent recognizer for Home Assistant voice
-commands.
-
-It tags lexical spans, generates possible semantic frames, validates those
-frames against the Home Assistant intent metadata, and rejects interpretations
-that leave content unexplained.
+An English-language, constraint-driven intent recognizer for Home Assistant
+voice commands. It complements Home Assistant's built-in sentence grammars by
+handling home-specific names, fuzzy wording, compound requests, and explicit
+conversation references while rejecting interpretations that do not fit the
+upstream intent schema.
 
 ## Features
 
-The gazetteer matcher complements the [builtin intent matcher][intents] in Home
-Assistant, which recognizes exact phrases and names.
-
-Additional features beyond the builtin matcher include:
-
-- Fuzzy name matching
-    - "turn on ceiling lights in the kitchen" -> matches "Kitchen Ceiling Lights"
-    - "turn off **bedrom** lights" -> matches "Bedroom"
-- Multiple targets
-    - "turn on living room and bedroom lights"
-- Multiple intents
-    - "turn off the lights and open the curtains"
-- Multple actions on a single target
-    - "turn on the TV and set its volume to 50%"
-- Refer to previous targets
-    - "turn on the lights" followed by "turn them off"
-    - "is the front door locked?" followed by "lock it"
-- Meaningful error messages
-    - "clean the Ecobee" responds with "Sorry, I see you're targeting 'EcoBee' (a thermostat), but I don't know what action to take."
+- **Flexible and fuzzy target matching** for entities, areas, floors, domains,
+  and actions: `turn on the bedrom lamp` resolves to `Bedroom Lamp`.
+- **Location-aware disambiguation** from spoken qualifiers and voice-satellite
+  context: `bedroom TV` selects the TV assigned to the bedroom.
+- **Compound commands** with multiple targets, intents, or properties:
+  `turn off the kitchen lights and open the bedroom blinds`.
+- **Multiple actions on one target**: `turn on the hallway light and set its
+  brightness to 40%`.
+- **Explicit conversational follow-ups**: `turn on the kitchen lights` followed
+  by `turn them off`, or `is the front door locked?` followed by `lock it`.
+- **Natural state questions** that preserve `any`, `all`, `which`, and
+  `how many` response semantics.
+- **Conservative, schema-backed validation** with structured error categories
+  and concise responses for ambiguous, unsupported, and out-of-range requests.
 
 ## Install
 
 ```bash
 pip install gazetteer-matcher
 ```
+
+Runtime dependencies are `home-assistant-intents`, `unicode-rbnf`, and
+`PyYAML`. A source install also attempts to build a self-contained C++17 fuzzy
+scorer. Installation still succeeds without a compiler and uses the
+behaviorally equivalent Python implementation instead.
 
 For development:
 
@@ -42,18 +41,6 @@ pip install 'gazetteer-matcher[dev]'
 pytest
 ```
 
-Dependencies are only:
-
-- `home-assistant-intents`
-- `unicode-rbnf`
-- `PyYAML`
-
-A source install also attempts to build the self-contained C++17 fuzzy-scoring
-accelerator. It has no library dependencies beyond Python itself. If no C++
-compiler is available, installation continues with the behaviorally equivalent
-Python scorer. `gazetteer_matcher.fuzzy.native_available()` reports which one
-was loaded.
-
 ## Quick start
 
 ```python
@@ -61,8 +48,12 @@ from gazetteer_matcher import GazetteerMatcher
 
 matcher = GazetteerMatcher(
     home={
-        "areas": {"kitchen": {"name": "Kitchen"}},
-        "floors": {},
+        "areas": {
+            "kitchen": {"name": "Kitchen", "floor": "ground"},
+        },
+        "floors": {
+            "ground": {"name": "Ground Floor"},
+        },
         "entities": {},
     }
 )
@@ -70,56 +61,62 @@ matcher = GazetteerMatcher(
 result = matcher.interpret("flick on the kichen lights")
 assert result.accepted
 
-for frame in result.frames:
-    print(frame.intent, frame.combination, frame.slots, frame.response_key)
+frame = result.frames[0]
+assert frame.intent == "HassTurnOn"
+assert frame.slots == {"area": "kitchen", "domain": "light"}
+assert frame.response_key == "lights_area"
 ```
 
-Output:
-
-```text
-HassTurnOn area_domain {'area': 'kitchen', 'domain': 'light'}
-```
-
-The typo `kichen` is a fuzzy `AREA` span. Fuzzy similarity is a late
-lexicographic tie-breaker; it does not make an otherwise invalid frame valid.
-
-Pass the voice satellite's location when it is available. IDs, configured
-names, and aliases are accepted; the floor is derived from the area unless it
-is supplied explicitly:
+Pass the voice satellite's location when a command omits it:
 
 ```python
-result = matcher.interpret(
-    "turn on the lights",
-    context_area="Kitchen",
-    context_floor="Ground Floor",
-)
+result = matcher.interpret("turn off the lights", context_area="Kitchen")
 assert result.frames[0].slots == {"domain": "light", "area": "kitchen"}
 ```
 
-Location context also ranks otherwise identical entity names. For example,
-when several areas contain an entity named `Ceiling Light`, the entity in the
-context area wins; context floor is a secondary fallback. Without context the
-same duplicate-name match remains ambiguous.
+Interpretations can contain several ordered frames:
 
-### Response keys
+```python
+result = matcher.interpret(
+    "turn off the kitchen lights and open the bedroom blinds"
+)
 
-Every accepted frame carries a `response_key` naming the response the upstream
-corpus writes for that shape, narrowed by the target's domain — `HassTurnOn`
-answers `lights_area` for an area of lights and `cover` for a named blind. The
-keys come from the same `home-assistant-intents` release the frames are
-validated against, so they cannot name a template that is not there.
+assert [frame.intent for frame in result.frames] == [
+    "HassTurnOff",
+    "HassTurnOn",
+]
+```
 
-Where the corpus answers one shape more than one way, wording decides. "How
-many lights are on" and "are any lights on" are the same frame; the words said
-select `how_many` or `any` through the `response_hints` in `vocabulary.yaml`.
-Where neither settles it, `response_key` is `None` and the caller should say
-nothing rather than guess.
+Rejected requests carry an integration-facing category, a diagnostic reason,
+and an optional ready-to-use response:
 
-## Follow-up targets
+```python
+result = matcher.interpret("set bedroom TV volume to 1000%")
 
-The matcher is stateless, but a caller may pass the targets from the most
-recent successful interpretation to resolve a small set of explicit follow-up
-phrases:
+assert not result.accepted
+assert result.rejection_code == "invalid_percentage"
+assert result.response == (
+    "Sorry, the volume value must be a whole-number percentage "
+    "between 0% and 100%."
+)
+```
+
+## Core API
+
+`GazetteerMatcher.interpret()` accepts:
+
+- the utterance;
+- optional `context_area` and `context_floor` values;
+- optional `previous_targets` exported by a prior accepted interpretation.
+
+An accepted `Interpretation` exposes ordered `frames` and reusable `targets`.
+Each frame contains the Home Assistant intent, slot combination, resolved slot
+values, response key, and selection diagnostics. Rejected interpretations
+expose `rejection_code`, `reason`, `response`, and `refusal_target`; their
+`targets` collection is always empty.
+
+The matcher itself is stateless. The caller decides whether a prior target is
+recent enough to pass back:
 
 ```python
 previous = matcher.interpret("open the bedroom blinds")
@@ -127,517 +124,44 @@ result = matcher.interpret(
     "close them",
     previous_targets=previous.targets,
 )
-
-assert result.frames[0].slots == {"name": "cover.bedroom_blinds"}
 ```
 
-A caller whose previous turn was answered by something else — another matcher,
-a hand-written rule — can build the targets itself instead. The constructors
-validate as they go, so a mistake is reported where it was made rather than on
-the next `interpret`:
+Call `matcher.set_home(...)` to replace the entity/area/floor gazetteer without
+rebuilding the language vocabulary, intent catalog, or shared number trie.
 
-```python
-from gazetteer_matcher import TargetReference
+## Documentation
 
-previous = (TargetReference.for_entity("cover.bedroom_blinds"),)
-result = matcher.interpret("close them", previous_targets=previous)
-```
+- [Usage guide](docs/usage.md) — context, compound commands, state questions,
+  follow-ups, response keys, and rejection handling
+- [Configuration](docs/configuration.md) — the home gazetteer, vocabulary,
+  response wording, and runtime updates
+- [Development](docs/development.md) — CLI diagnostics, fixture tests,
+  rejection tests, and upstream coverage measurement
+- [Internals](docs/internals.md) — tagging, intent constraints, number words,
+  fuzzy scoring, coordination, scope, and candidate selection
 
-`for_area` and `for_floor` take the same optional `domain`/`device_class`
-keywords, so "turn them off" after a command about the kitchen lights reuses
-the lights rather than the whole room.
-
-Only `it` and `them` trigger target reuse. The modifiers `back` and `again`
-are accepted with those pronouns, and reuse is limited to turn-on, turn-off,
-open, close, lock, and unlock actions. `it` requires one named entity; `them`
-may also reuse an area, floor, or whole-home selector. Repeated references to
-the same target across a multi-frame interpretation are coalesced. The current
-implementation rejects multiple distinct previous target references, pronouns
-mixed with an explicit target, and any action whose existing intent/domain
-constraints do not support the target.
-
-`Interpretation.targets` is empty for rejected interpretations, so a partial
-multi-command match cannot accidentally replace conversation state. Previous
-targets are ignored unless an explicit supported pronoun is present. The
-caller remains responsible for deciding how recent a successful turn must be
-before passing its targets back to the matcher. A context-area selector is
-reusable only when `context_area` was supplied and therefore materialized as a
-concrete area in the original frame.
-
-## CLI/debug tooling
-
-Interpret normally:
+## CLI
 
 ```bash
 gazetteer-match match 'turn on the kitchen and hallway lights'
-```
-
-Supply location context on the CLI with:
-
-```bash
-gazetteer-match match 'turn off the lights' \
-  --context-area Kitchen --context-floor 'Ground Floor'
-```
-
-Inspect tokens, every span, candidate frames, costs, inheritance, violations,
-and unexplained tokens:
-
-```bash
 gazetteer-match match 'flick on the kichen lights' --debug
-```
-
-JSON including candidates:
-
-```bash
 gazetteer-match match 'open the bedroom blinds' --debug --json
-```
-
-Only show lexical spans:
-
-```bash
 gazetteer-match spans 'flik the bedroom lights on'
-```
-
-Show slot-combination reachability:
-
-```bash
 gazetteer-match support
 ```
 
-Measure strict intent, combination, and slot coverage against the non-wildcard
-English fallback tests in a local `intent-sentences` checkout. By default,
-sentences already handled by the lean `speech_to_phrase` HassIL subset are
-removed before running the gazetteer matcher:
-
-```bash
-python script/run_english_coverage.py
-```
-
-Run one intent, or repeat the option to select several:
-
-```bash
-python script/run_english_coverage.py --intent HassTurnOn
-python script/run_english_coverage.py \
-  --intent HassTurnOn --intent HassTurnOff
-```
-
-Measure only the existing test sentences that the lean
-`speech_to_phrase: true` HassIL template subset recognizes with the expected
-intent and slot combination:
-
-```bash
-python script/run_english_coverage.py --speech-to-phrase
-```
-
-To reproduce coverage across every non-wildcard sentence, including the lean
-HassIL cohort, use:
-
-```bash
-python script/run_english_coverage.py --all-sentences
-```
-
-This mode uses the local HassIL checkout at `~/opt/hassil`; override it with
-`--hassil-dir` when needed. It can be combined with one or more `--intent`
-filters.
-
-### Home fixture tests
-
-The sample gazetteer lives in `tests/home.yaml`. Positive end-to-end cases are
-grouped by intent family under `tests/sentences/`; each record contains an
-utterance, optional location context, and the complete ordered list of expected
-intent frames. The corpus is based on Home Assistant's
-[built-in sentence starter pack](https://www.home-assistant.io/voice_control/builtin_sentences).
-
-```yaml
-cases:
-  - sentences:
-      - is the front door locked
-      - is the front door currently locked
-    frames:
-      - intent: HassGetState
-        combination: name_state
-        response_key: one_yesno
-        slots: {name: lock.front_door, state: locked}
-```
-
-`tests/test_sentences.py` discovers every YAML file in that directory and
-compares every resulting intent, combination, slot dictionary, and response
-key. Add home-specific positive coverage there instead of embedding it in
-Python test code.
-
-A case or series turn may use either one `sentence` or a non-empty `sentences`
-list. Every sentence in the list is tested with the same context and expected
-frames. Alternatives on a series turn must also produce identical follow-up
-targets, so the next turn has unambiguous conversation state. Use a list for
-natural equivalent forms, not for different intents or target scopes.
-
-Set `requires_fuzzy: true` on a case that specifically exercises typo recovery.
-Besides checking the frames, the runner then requires at least one selected
-lexical span to come from fuzzy matching.
-
-For `HassGetState`, the response key preserves question wording that is not
-represented by slots. For example, `are any doors unlocked` and `which doors
-are unlocked` both produce `HassGetState.domain_state` with `{domain: lock,
-state: unlocked}`, but their frames carry `any` and `which` respectively.
-Aggregate query keys (`any`, `all`, `which`, and `how_many`) come from lexical
-hints configured in `vocabulary.yaml`; fixed shapes use their corresponding
-combination default (`one`, `one_yesno`, or `where`).
-
-Multi-turn follow-ups use a `series` record. Turns run in order, and the
-targets from each accepted result are automatically passed to the next turn as
-`previous_targets`:
-
-```yaml
-series:
-  - name: kitchen lights follow-up
-    turns:
-      - sentence: turn on the kitchen lights
-        frames:
-          - intent: HassTurnOn
-            combination: area_domain
-            slots: {area: kitchen, domain: light}
-      - sentence: turn them off
-        frames:
-          - intent: HassTurnOff
-            combination: area_domain
-            slots: {area: kitchen, domain: light}
-```
-
-`context_area` and `context_floor` may be set on the series as defaults or on
-an individual turn as overrides. Existing `cases` and `series` may coexist in
-the same YAML file.
-
-The matcher runs after the built-in sentence and HassIL recognizers, so this
-home corpus is not intended to duplicate every upstream sentence. It keeps a
-small set of canonical anchors, then emphasizes useful fallback behavior such
-as aliases, terse queries, alternate word order, scoped state questions,
-coordination, anaphora, and fuzzy names. The broader upstream fallback cohort
-is measured separately by `script/run_english_coverage.py`.
-
-When adding alternatives to a `sentences` list, first check them against the
-full English HassIL grammar. Keep additions that receive no built-in match and
-that represent wording a user might reasonably choose; the purpose is to show
-how this matcher complements the built-in grammar, not to accumulate contrived
-phrases it happens to accept.
-
-### Rejection tests
-
-Negative examples live in `tests/rejections.yaml`, separate from positive
-intent coverage so the two metrics cannot mask one another. Records look like:
-
-```yaml
-cases:
-  - sentence: turn on seventeen red kitchen lights
-    category: contradictory_semantic_evidence
-  - sentence: write a poem about my kitchen lights
-    category: downstream_llm
-  - sentence: ceiling light
-    context_area: kitchen
-    category: incomplete_command
-```
-
-The data-driven `tests/test_rejections.py` test calls `interpret` with any
-supplied context and asserts only that `accepted` is false; rejection-reason
-strings are diagnostic and too brittle to make part of the contract. These
-should be reported separately as a false acceptance rate, with paired
-positive/negative examples when a small wording change is safety-significant.
-
-### Rejection responses
-
-Rejected interpretations include both a stable category and a concise,
-user-facing response:
-
-```python
-result = matcher.interpret("clippy")
-
-assert result.rejection_code == "no_action"
-assert result.response == (
-    "Sorry, I see you're targeting 'Clippy' (a lawn mower), "
-    "but I don't know what action to take."
-)
-```
-
-`reason` remains the detailed matcher diagnostic for debugging. It should not
-be spoken to a user. `rejection_code` lets an integration choose a different
-delivery policy, while `response` is ready to use when no fallback LLM is
-available. Accepted interpretations have neither field.
-
-Most refusals explain nothing, because noise resolves nothing: "asdfgh" and "do
-something" both come back as the same generic wording. `refusal_target` names
-what the refusal was aimed at when it was aimed at anything, so a caller with a
-decent error message of its own can tell the two apart and keep it:
-
-```python
-matcher.interpret("asdfgh").refusal_target                     # None
-matcher.interpret("write a poem about my kitchen lights") \
-    .refusal_target                                            # "the lights in Kitchen"
-```
-
-All response wording, action labels, device/domain labels, and target phrase
-templates live in `data/responses.yaml`. Supply `responses` (a dictionary or
-YAML path), the compatible `responses_path`, or `--responses` to the CLI to
-replace them for another deployment or language.
-
-The runner excludes combinations declaring `wildcard_slots`, prints coverage
-by intent and categorized failure samples, and exits successfully even when
-sentences are uncovered. Use `--json` for machine-readable output or
-`--tests-dir` to select a different checkout.
-
-Override any data file:
-
-```bash
-gazetteer-match match 'turn on the office lamp' \
-  --home my-home.yaml \
-  --vocabulary my-vocabulary.yaml \
-  --responses my-responses.yaml
-```
-
-## Vocabulary/data files
-
-### `data/vocabulary.yaml`
-
-Contains the language-dependent vocabulary:
-
-- skip/request-wrapper phrases
-- conjunctions
-- relation/property cues
-- domain words
-- device-class words
-- states
-- colors
-- media classes
-- units
-- action phrases and virtual-action lowerings
-- fuzzy thresholds/policies
-- a small number of combination-specific semantic cues
-
-For example, `open` is a virtual action that lowers to `HassTurnOn` but is
-constrained to `cover`/`valve` domains. `lock` similarly lowers to
-`HassTurnOn` but is constrained to `lock` entities.
-
-Actions may opt in to exact matching across grammatical skip tokens with
-`allow_interstitial_skips: true`. Only skip tokens between phrase tokens are
-ignored, one token per gap by default; matched action indexes remain explicit,
-so semantic content and conjunctions cannot be crossed accidentally.
-
-### `tests/home.yaml`
-
-The test-only sample dynamic gazetteer. Applications should pass a dictionary
-or YAML path generated from their own Home Assistant instance:
-
-```yaml
-areas:
-  kitchen:
-    name: Kitchen
-    aliases: [kitchen]
-    floor: ground
-
-floors:
-  ground:
-    name: Ground Floor
-    aliases: [ground floor, downstairs, first floor]
-
-entities:
-  light.kitchen_ceiling:
-    name: Kitchen Ceiling Lights
-    aliases: [kitchen ceiling lights, ceiling lights]
-    domain: light
-    area: kitchen
-    floor: ground
-```
-
-Exact aliases are tagged first. Pure-Python fuzzy lookup adds additional
-`name`, `area`, and `floor` candidates only where useful. Entity names may
-also omit a complete interior word when the first and final words still match;
-for example, `Josh's Lights` can match `Josh's Office Lights`. Equally good
-shortened names remain ambiguous.
-
-### Home Assistant intent metadata
-
-The matcher reads the catalog returned by `home_assistant_intents.get_intent_info()`
-instead of duplicating combinations in Python or loading a separate YAML file.
-Combinations with `wildcard_slots` are intentionally ignored.
-
-### `data/responses.yaml`
-
-Contains rejection templates plus localized action, domain, device-class, and
-target labels. The matcher selects a structured rejection category in code,
-but all words presented to the user come from this file. Missing specialized
-templates fall back to its `generic` response.
-
-## Number words with Unicode RBNF
-
-`unicode-rbnf` is a formatter, not a number-word parser. The MVP reverses it:
-
-1. Ask `RbnfEngine` for cardinal/ordinal spellings up to configured maxima.
-2. Normalize those spellings using the same tokenizer as utterances.
-3. Insert the spellings into a trie.
-4. Longest-match the trie against input tokens.
-
-This makes CLDR/RBNF the number-word vocabulary source without embedding a
-second English number lexicon in Python.
-
-Step 1 spells tens of thousands of numbers and dominates the cost of building a
-matcher. The trie depends only on the language and the maxima, and is read-only
-once built, so it is cached and shared by every matcher that wants the same one.
-This matters to applications that rebuild a matcher when their home changes:
-without sharing, renaming one entity re-spells every number in the language.
-
-The configured number joiner (`and` for English) can be skipped *inside an
-otherwise valid longer number*. This lets:
-
-```text
-one hundred and twenty seconds
-```
-
-become a single `120` number span rather than a conjunction between two
-commands.
-
-## Fuzzy matching
-
-`gazetteer_matcher/fuzzy.py` provides the reference implementation of:
-
-- Levenshtein distance
-- optimal-string-alignment Damerau-Levenshtein distance
-- normalized similarity
-- token-sort similarity
-- `extract()` for top-N vocabulary matches
-
-The default is Damerau-Levenshtein because adjacent transpositions are common
-in noisy text/ASR-like output and names are short.
-
-When built, `_fuzzy_native.cpp` scores a reusable batch of normalized choices
-in C++. One Python-to-native call scores a complete token-length bucket, retains
-only the top matches, and releases the GIL while calculating distances. The
-Python implementation remains the fallback and the equivalence test corpus
-requires identical scores and ordering from both implementations.
-
-The tagger constructs the action, entity, area, and floor batches when its home
-is built. It also caches the token tuples used by name-elision scoring, avoiding
-per-utterance normalization of every configured name.
-
-Actions use a higher threshold than entity/location names. For opposing action
-families (`on/off`, `open/close`, `lock/unlock`, etc.), a close fuzzy tie is
-not allowed to decide the polarity.
-
-## Conjunction model
-
-The MVP treats configured conjunctions as coordination boundaries.
-
-```text
-turn on the kitchen and hallway lights
-```
-
-is split into two semantic segments. The second target supplies the unique
-`light` domain, which can be inherited by the first target, while the
-`TURN_ON` action is inherited by the second segment:
-
-```text
-HassTurnOn(area=kitchen, domain=light)
-HassTurnOn(area=hallway, domain=light)
-```
-
-Multiple actions work independently:
-
-```text
-turn off the kitchen lights and open the bedroom blinds
-```
-
-becomes:
-
-```text
-HassTurnOff(area=kitchen, domain=light)
-HassTurnOn(name=cover.bedroom_blinds)
-```
-
-Property coordination can reuse a preceding target:
-
-```text
-set the living room lights red and fifty percent
-```
-
-becomes two `HassLightSet` frames, one for color and one for brightness.
-
-The inheritance is deliberately conservative: only a unique value is shared,
-and an action-inherited segment with no local target is required to retain the
-previous target rather than silently changing scope.
-
-## Quantity and scope
-
-Quantity words such as `all` and `every` do not determine location. They apply
-within the scope selected by the rest of the command:
-
-- a named area or floor selects that location
-- `here` selects the supplied context area
-- `everywhere` or `in the house` selects the whole home
-- an unscoped `all` uses a global combination when the intent/domain supports
-  one; otherwise it uses the context-area combination
-
-For example, `turn all the lights in the kitchen off` targets the kitchen,
-`turn off all the fans` uses the context area, and `turn all lights off` uses
-the whole-house light combination. Conflicting local and home-wide scope, such
-as `kitchen lights everywhere`, is rejected.
-
-## Candidate selection
-
-Candidates are compared lexicographically. Conceptually:
-
-```text
-(
-    constraint violations,
-    unexplained important tokens,
-    unexplained unimportant tokens,
-    -action evidence tokens,
-    fuzzy action count,
-    fuzzy slot count,
-    inherited fields,
-    context mismatch rank,
-    target generality,
-    fuzzy distance,
-    -consumed token count,
-)
-```
-
-An unexplained token is important when it participates in a recognized
-semantic span, such as an action, slot value, number, unit, marker, or cue; it
-may support a different intent or interpretation. Other unmatched words are
-unimportant. By default, a candidate may leave at most one important token and
-two unimportant tokens unexplained. The two limits are independent.
-
-This means a 99% fuzzy match cannot compensate for extra semantic evidence or
-a violated intent constraint. If two distinct semantics have exactly the same
-best cost, the MVP rejects the utterance as ambiguous.
-
-Example:
-
-```text
-turn on seventeen red kitchen lights
-```
-
-recognizes both the number `17` and the color `red`, but no valid `HassTurnOn`
-combination consumes them. The utterance is rejected because it has two
-unexplained important tokens.
-
-## Intent constraints currently enforced
-
-The generic validator uses the Home Assistant intent metadata for:
-
-- exact required slot sets per combination
-- wildcard exclusion
-- `context_area` metadata
-- `inferred_domains`
-- `name_domains`
-
-It additionally enforces:
-
-- virtual-action domain constraints
-- entity/area and entity/floor consistency
-- context-area materialization and duplicate-name context ranking
-- independent quantity and geographic-scope constraints
-- device-class/domain compatibility
-- explicit combination cues configured in YAML
-- no incompatible reuse of the same lexical evidence for multiple slots
-- separate limits for unexplained semantic and unmatched content
+Supply `--home`, `--vocabulary`, or `--responses` to override any data file.
+Location context is available through `--context-area` and `--context-floor`.
+See the [development guide](docs/development.md) for the complete debugging and
+coverage workflow.
+
+## Design principle
+
+Fuzzy similarity is evidence, not permission. A close spelling match cannot
+outweigh incompatible Home Assistant slots, contradictory scope, unexplained
+semantic content, or an equally good competing interpretation. When the
+matcher cannot choose one valid meaning, it rejects the request rather than
+guessing.
 
 <!-- Links -->
 [intents]: https://github.com/OHF-Voice/intents

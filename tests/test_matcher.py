@@ -304,6 +304,31 @@ def test_possessive_property_clause_inherits_named_target(matcher):
     assert result.frames[1].unexplained_tokens == []
 
 
+def test_possessive_property_clause_inherits_context_disambiguated_target(matcher):
+    result = matcher.interpret(
+        "turn on the TV and set its volume to 50%",
+        context_area="Living Room",
+    )
+
+    assert result.accepted
+    assert frame_tuples(result) == [
+        ("HassTurnOn", {"name": "media_player.living_room"}),
+        (
+            "HassSetVolume",
+            {"name": "media_player.living_room", "volume_level": 50},
+        ),
+    ]
+    assert result.frames[1].inherited_slots == 1
+    assert result.frames[1].unexplained_tokens == []
+
+
+def test_possessive_clause_does_not_hide_ambiguous_preceding_target(matcher):
+    result = matcher.interpret("turn on the TV and set its volume to 50%")
+
+    assert not result.accepted
+    assert result.ambiguous
+
+
 def test_singular_possessive_does_not_refer_to_a_group(matcher):
     result = matcher.interpret(
         "turn on the kitchen lights and set its brightness to 40%"

@@ -1,0 +1,115 @@
+---
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install development dependencies
+        run: python -m pip install --upgrade --editable ".[dev]"
+
+      - name: Run linters
+        run: script/lint
+
+  test:
+    name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+        python-version:
+          - "3.11"
+          - "3.14"
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install project and test dependencies
+        run: python -m pip install --upgrade --editable ".[dev]"
+
+      - name: Verify native accelerator
+        run: >-
+          python -c "from gazetteer_matcher.fuzzy import native_available;
+          assert native_available(), 'native accelerator was not built'"
+
+      - name: Run tests
+        run: python -m pytest
+
+  package:
+    name: Validate distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install packaging tools
+        run: python -m pip install --upgrade build twine
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Check distribution metadata
+        run: python -m twine check dist/*
+
+      - name: Smoke-test wheel installation
+        shell: bash
+        run: |
+          python -m venv /tmp/gazetteer-matcher-wheel-test
+          /tmp/gazetteer-matcher-wheel-test/bin/python -m pip install dist/*.whl
+          /tmp/gazetteer-matcher-wheel-test/bin/python -c \
+            "from gazetteer_matcher.fuzzy import native_available; assert native_available()"
+          /tmp/gazetteer-matcher-wheel-test/bin/gazetteer-match support
+
+      - name: Smoke-test source fallback without a compiler
+        shell: bash
+        env:
+          CXX: /bin/false
+        run: |
+          python -m venv /tmp/gazetteer-matcher-sdist-test
+          /tmp/gazetteer-matcher-sdist-test/bin/python -m pip install \
+            --no-binary gazetteer-matcher dist/*.tar.gz
+          /tmp/gazetteer-matcher-sdist-test/bin/python -c \
+            "from gazetteer_matcher.fuzzy import native_available; assert not native_available()"
+          /tmp/gazetteer-matcher-sdist-test/bin/gazetteer-match support

@@ -1,0 +1,172 @@
+---
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify release version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Match tag to package version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: python
+        run: |
+          import os
+          import pathlib
+          import sys
+          import tomllib
+
+          metadata = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+          version = metadata["project"]["version"]
+          expected_tag = f"v{version}"
+          actual_tag = os.environ["RELEASE_TAG"]
+
+          if actual_tag != expected_tag:
+              sys.exit(
+                  f"Release tag {actual_tag!r} does not match "
+                  f"pyproject.toml version {version!r} (expected {expected_tag!r})"
+              )
+
+  wheels:
+    name: Wheels (${{ matrix.os }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - macos-15-intel
+          - macos-14
+          - windows-latest
+          - windows-11-arm
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build and test wheels
+        uses: pypa/cibuildwheel@v4.1.1
+        env:
+          CIBW_BUILD: "cp3{11,12,13,14}-*"
+          CIBW_ARCHS: auto64
+          CIBW_SKIP: "*-musllinux_*"
+          CIBW_TEST_REQUIRES: "pytest>=8"
+          CIBW_TEST_COMMAND: >-
+            python -c "from gazetteer_matcher.fuzzy import native_available;
+            assert native_available(), 'native accelerator is missing'" &&
+            python -m pytest -vv {project}/tests
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+          retention-days: 7
+
+  sdist:
+    name: Source distribution
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install packaging tools
+        run: python -m pip install --upgrade build twine
+
+      - name: Build and check source distribution
+        run: |
+          python -m build --sdist
+          python -m twine check dist/*
+
+      - name: Smoke-test Python fallback without a compiler
+        shell: bash
+        env:
+          CXX: /bin/false
+        run: |
+          python -m venv /tmp/gazetteer-matcher-sdist-test
+          /tmp/gazetteer-matcher-sdist-test/bin/python -m pip install \
+            --no-binary gazetteer-matcher dist/*.tar.gz
+          /tmp/gazetteer-matcher-sdist-test/bin/python -c \
+            "from gazetteer_matcher.fuzzy import native_available; assert not native_available()"
+          /tmp/gazetteer-matcher-sdist-test/bin/gazetteer-match support
+
+      - name: Upload source distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to PyPI
+    needs:
+      - wheels
+      - sdist
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/gazetteer-matcher/
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*"
+          merge-multiple: true
+          path: dist
+
+      - name: Publish distributions
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub release
+    needs:
+      - wheels
+      - sdist
+      - publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*"
+          merge-multiple: true
+          path: dist
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

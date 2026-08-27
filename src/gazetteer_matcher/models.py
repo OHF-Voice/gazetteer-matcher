@@ -151,10 +151,8 @@ class FrameCandidate:
     anaphor_target: int | None = None
     """Which supplied antecedent this reading resolved "it"/"them" against.
 
-    A plural follow-up reaches every target the previous turn named, and each one
-    is a separate reading of the same words. Ranking compares only the readings of
-    the first, so equally good readings of different targets are not taken for an
-    ambiguous sentence; the rest are matched to the winner by this index.
+    Ranking compares only the readings of the first, and matches the rest to the
+    winner by this index.
     """
 
     @property

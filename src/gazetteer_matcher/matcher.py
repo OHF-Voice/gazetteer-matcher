@@ -1849,8 +1849,7 @@ class GazetteerMatcher:
                 f"no previous target for {anaphor.text!r}",
             )
 
-        # "Them" reaches every target the previous turn named; "it" names one thing,
-        # so a turn that named several leaves it nothing to pick out.
+        # "Them" reaches every target; "it" names one thing.
         if anaphor.value != "singular":
             return anaphor, previous_targets, None, None
 
@@ -2008,9 +2007,8 @@ class GazetteerMatcher:
                     if self._matches_required_target(candidate, required_target)
                 ]
             candidates = self._dedupe_candidates(candidates)
-            # How the sentence reads is settled against the first target alone. The
-            # readings of the others say the same thing about something else, and
-            # weighing them together would look like an ambiguous sentence.
+            # Ranked against the first target alone: equally good readings of
+            # different targets are not an ambiguous sentence.
             primary = [
                 candidate
                 for candidate in candidates
@@ -2054,9 +2052,8 @@ class GazetteerMatcher:
             if chosen.anaphor_target is None:
                 continue
 
-            # The winning reading, said again about each of the remaining targets.
-            # Its intent is what the sentence asked for; the combination may differ,
-            # since a target names a room where another names one device.
+            # Matched on intent, not combination: a target naming a room needs a
+            # different combination than one naming a device.
             for index in range(1, len(anaphor_targets)):
                 siblings = [
                     candidate
@@ -2071,9 +2068,7 @@ class GazetteerMatcher:
                     chosen_frames.append(sibling)
                     continue
 
-                # Every target or none: half of what was asked for is worse than a
-                # refusal. It names the target that could not be reached, not the
-                # one the reading happened to be settled on.
+                # Every target or none, and the refusal names the one missed.
                 debug.frame_candidates = siblings
                 debug.rejection_reason = sibling_reason
                 return self._rejected_interpretation(

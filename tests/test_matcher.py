@@ -874,7 +874,7 @@ def test_them_reaches_targets_of_differing_scope(matcher):
 
     result = matcher.interpret("turn them off", previous_targets=previous.targets)
     assert result.accepted
-    # The intent is what the sentence asked for; the combination follows the target.
+    # Same intent, but the combination follows each target.
     assert [(frame.intent, frame.combination) for frame in result.frames] == [
         ("HassTurnOff", "name_only"),
         ("HassTurnOff", "area_domain"),

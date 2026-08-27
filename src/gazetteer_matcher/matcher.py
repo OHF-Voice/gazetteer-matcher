@@ -1495,7 +1495,7 @@ class GazetteerMatcher:
         segment: tuple[int, int],
         context: _ResolvedContext,
         anaphor_span: Span | None = None,
-        previous_target: TargetReference | None = None,
+        previous_targets: Sequence[TargetReference] = (),
         coordination_target: dict[str, Any] | None = None,
     ) -> list[FrameCandidate]:
         action_key = str(action_span.value)
@@ -1511,30 +1511,28 @@ class GazetteerMatcher:
             for combo in self.catalog.combinations(intent):
                 if combo.context_area is True and context.area is None:
                     continue
-                if (
-                    anaphor_span is not None
-                    and previous_target is not None
-                    and action_key in self.anaphora_actions
-                ):
-                    inherited = self._anaphoric_selection(
-                        combo, previous_target, anaphor_span
-                    )
-                    if inherited is not None:
-                        result.append(
-                            self._frame_from_selection(
-                                intent,
-                                combo,
-                                inherited,
-                                action_key,
-                                action_span,
-                                action_spec,
-                                tokens,
-                                local_spans,
-                                segment,
-                                inherited_action,
-                                context,
-                            )
+                if anaphor_span is not None and action_key in self.anaphora_actions:
+                    for index, previous_target in enumerate(previous_targets):
+                        inherited = self._anaphoric_selection(
+                            combo, previous_target, anaphor_span
                         )
+                        if inherited is None:
+                            continue
+                        candidate = self._frame_from_selection(
+                            intent,
+                            combo,
+                            inherited,
+                            action_key,
+                            action_span,
+                            action_spec,
+                            tokens,
+                            local_spans,
+                            segment,
+                            inherited_action,
+                            context,
+                        )
+                        candidate.anaphor_target = index
+                        result.append(candidate)
 
                 option_lists: list[list[SlotOption]] = []
                 impossible = False
@@ -1808,23 +1806,23 @@ class GazetteerMatcher:
         segment: tuple[int, int],
         actions: list[Span],
         previous_targets: tuple[TargetReference, ...],
-    ) -> tuple[Span | None, TargetReference | None, str | None, str | None]:
+    ) -> tuple[Span | None, tuple[TargetReference, ...], str | None, str | None]:
         anaphors = [
             span
             for span in spans
             if span.tag == "anaphor" and self._in_segment(span, segment)
         ]
         if not anaphors:
-            return None, None, None, None
+            return None, (), None, None
         # "It" is also a grammatical subject in queries such as "what time
         # is it?". Anaphora is opt-in by action, so leave the token alone when
         # no supported device action is present.
         if not any(str(action.value) in self.anaphora_actions for action in actions):
-            return None, None, None, None
+            return None, (), None, None
         if len(anaphors) != 1:
             return (
                 None,
-                None,
+                (),
                 "anaphora_multiple_pronouns",
                 "only one follow-up pronoun is supported",
             )
@@ -1839,34 +1837,40 @@ class GazetteerMatcher:
         ):
             return (
                 None,
-                None,
+                (),
                 "anaphora_explicit_target",
                 "a follow-up pronoun cannot be combined with an explicit target",
             )
         if not previous_targets:
             return (
                 None,
-                None,
+                (),
                 "anaphora_missing_target",
                 f"no previous target for {anaphor.text!r}",
             )
+
+        # "Them" reaches every target the previous turn named; "it" names one thing,
+        # so a turn that named several leaves it nothing to pick out.
+        if anaphor.value != "singular":
+            return anaphor, previous_targets, None, None
+
         if len(previous_targets) != 1:
             return (
                 None,
-                None,
+                (),
                 "anaphora_multiple_targets",
                 "multiple previous targets are not supported",
             )
 
         target = previous_targets[0]
-        if anaphor.value == "singular" and target.scope != "entity":
+        if target.scope != "entity":
             return (
                 None,
-                None,
+                (),
                 "anaphora_singular_group",
                 f"{anaphor.text!r} requires a single named entity target",
             )
-        return anaphor, target, None, None
+        return anaphor, (target,), None, None
 
     def interpret(
         self,
@@ -1927,7 +1931,7 @@ class GazetteerMatcher:
 
             (
                 anaphor_span,
-                previous_target,
+                anaphor_targets,
                 anaphora_code,
                 anaphora_error,
             ) = self._resolve_anaphora(
@@ -1993,7 +1997,7 @@ class GazetteerMatcher:
                         segment,
                         context,
                         anaphor_span,
-                        previous_target,
+                        anaphor_targets,
                         coordination_target,
                     )
                 )
@@ -2004,17 +2008,25 @@ class GazetteerMatcher:
                     if self._matches_required_target(candidate, required_target)
                 ]
             candidates = self._dedupe_candidates(candidates)
-            debug.frame_candidates = candidates
-            chosen, segment_ambiguous, reason = self._choose_candidate(candidates)
+            # How the sentence reads is settled against the first target alone. The
+            # readings of the others say the same thing about something else, and
+            # weighing them together would look like an ambiguous sentence.
+            primary = [
+                candidate
+                for candidate in candidates
+                if candidate.anaphor_target in (None, 0)
+            ]
+            debug.frame_candidates = primary
+            chosen, segment_ambiguous, reason = self._choose_candidate(primary)
             has_anaphoric_candidate = any(
                 any(
                     option.source == "anaphora"
                     for option in candidate.slot_options.values()
                 )
-                for candidate in candidates
+                for candidate in primary
             )
             rejection_code = self._candidate_rejection_code(
-                candidates,
+                primary,
                 ambiguous=segment_ambiguous,
                 spans=spans,
             )
@@ -2038,6 +2050,47 @@ class GazetteerMatcher:
                     segments=segment_debug,
                 )
             chosen_frames.append(chosen)
+
+            if chosen.anaphor_target is None:
+                continue
+
+            # The winning reading, said again about each of the remaining targets.
+            # Its intent is what the sentence asked for; the combination may differ,
+            # since a target names a room where another names one device.
+            for index in range(1, len(anaphor_targets)):
+                siblings = [
+                    candidate
+                    for candidate in candidates
+                    if candidate.anaphor_target == index
+                    and candidate.intent == chosen.intent
+                ]
+                sibling, sibling_ambiguous, sibling_reason = self._choose_candidate(
+                    siblings
+                )
+                if sibling is not None:
+                    chosen_frames.append(sibling)
+                    continue
+
+                # Every target or none: half of what was asked for is worse than a
+                # refusal. It names the target that could not be reached, not the
+                # one the reading happened to be settled on.
+                debug.frame_candidates = siblings
+                debug.rejection_reason = sibling_reason
+                return self._rejected_interpretation(
+                    text=text,
+                    tokens=tokens,
+                    spans=spans,
+                    frames=chosen_frames,
+                    ambiguous=ambiguous or sibling_ambiguous,
+                    reason=sibling_reason
+                    or "previous target is not supported by this action",
+                    rejection_code=(
+                        "ambiguous"
+                        if sibling_ambiguous
+                        else "unsupported_target_action"
+                    ),
+                    segments=segment_debug,
+                )
 
         return Interpretation(
             text=text,

@@ -148,6 +148,15 @@ class FrameCandidate:
     cost: tuple[Any, ...] = ()
     response_key: str | None = None
 
+    anaphor_target: int | None = None
+    """Which supplied antecedent this reading resolved "it"/"them" against.
+
+    A plural follow-up reaches every target the previous turn named, and each one
+    is a separate reading of the same words. Ranking compares only the readings of
+    the first, so equally good readings of different targets are not taken for an
+    ambiguous sentence; the rest are matched to the winner by this index.
+    """
+
     @property
     def unexplained_tokens(self) -> list[int]:
         """All unexplained token indexes, retained as a compatibility view."""

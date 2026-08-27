@@ -153,9 +153,26 @@ Only explicit `it` and `them` pronouns trigger cross-turn reuse. `back` and
 close, lock, and unlock actions. `it` requires a named entity; `them` can also
 refer to an area, floor, or whole-home selector.
 
-Rejected interpretations export no targets. Multiple previous targets,
-pronouns mixed with an explicit target, and actions incompatible with the
-target are rejected.
+`them` reaches every target the previous turn named, producing one frame for
+each. How the sentence reads is settled against the first target and the same
+intent is applied to the rest, so targets of differing scope are reached
+together — a turn naming one device and one room is followed by `turn them off`
+without either being lost. A target the action cannot apply to rejects the
+sentence rather than acting on only some of them.
+
+```python
+previous = matcher.interpret("turn on the bedroom lamp and the kitchen lights")
+result = matcher.interpret("turn them off", previous_targets=previous.targets)
+
+assert [frame.slots for frame in result.frames] == [
+    {"name": "light.bedroom_lamp"},
+    {"area": "kitchen", "domain": "light"},
+]
+```
+
+Rejected interpretations export no targets. `it` after a turn that named more
+than one target, pronouns mixed with an explicit target, and actions
+incompatible with the target are rejected.
 
 ## Quantity and geographic scope
 

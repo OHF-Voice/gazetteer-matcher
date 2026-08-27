@@ -855,11 +855,50 @@ def test_anaphora_cannot_be_mixed_with_an_explicit_target(matcher):
     assert "explicit target" in (result.reason or "")
 
 
-def test_multiple_previous_targets_are_not_resolved(matcher):
+def test_them_resolves_against_every_previous_target(matcher):
     previous = matcher.interpret("turn on the kitchen and hallway lights")
     assert len(previous.targets) == 2
 
     result = matcher.interpret("turn them off", previous_targets=previous.targets)
+    assert result.accepted
+    assert frame_tuples(result) == [
+        ("HassTurnOff", {"area": "kitchen", "domain": "light"}),
+        ("HassTurnOff", {"area": "hallway", "domain": "light"}),
+    ]
+
+
+def test_them_reaches_targets_of_differing_scope(matcher):
+    """One reading of the sentence, said about a device and about a room."""
+    previous = matcher.interpret("turn on the bedroom lamp and the kitchen lights")
+    assert [target.scope for target in previous.targets] == ["entity", "area"]
+
+    result = matcher.interpret("turn them off", previous_targets=previous.targets)
+    assert result.accepted
+    # The intent is what the sentence asked for; the combination follows the target.
+    assert [(frame.intent, frame.combination) for frame in result.frames] == [
+        ("HassTurnOff", "name_only"),
+        ("HassTurnOff", "area_domain"),
+    ]
+
+
+def test_them_reaches_every_target_or_none(matcher):
+    previous = matcher.interpret("open the bedroom blinds and turn on the bedroom lamp")
+    assert len(previous.targets) == 2
+
+    result = matcher.interpret("close them", previous_targets=previous.targets)
+    assert not result.accepted
+    assert result.rejection_code == "unsupported_target_action"
+    # The blinds could have been closed; the refusal names the one that could not.
+    assert result.response == (
+        "Sorry, I can't close 'Bedroom Lamp' (a light); that action doesn't apply."
+    )
+
+
+def test_it_is_not_resolved_against_multiple_previous_targets(matcher):
+    previous = matcher.interpret("turn on the kitchen and hallway lights")
+    assert len(previous.targets) == 2
+
+    result = matcher.interpret("turn it off", previous_targets=previous.targets)
     assert not result.accepted
     assert result.reason == "multiple previous targets are not supported"
 

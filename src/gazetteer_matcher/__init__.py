@@ -28,4 +28,4 @@ __all__ = [
     "Token",
     "load_response_keys",
 ]
-__version__ = "0.1.0"
+__version__ = "1.1.0"

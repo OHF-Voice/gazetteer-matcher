@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -59,3 +60,47 @@ def test_support_remains_usable_without_a_home(capsys):
 
     assert exit_code == 0
     assert '"total_combinations"' in capsys.readouterr().out
+
+
+def test_match_explains_how_a_sentence_was_read(capsys):
+    home_path = Path(__file__).with_name("home.yaml")
+
+    exit_code = main(
+        ["match", "turn on the kitchen lights", "--home", str(home_path), "--explain"]
+    )
+
+    assert exit_code == 0
+    assert "Chose HassTurnOn" in capsys.readouterr().out
+
+
+def test_explaining_a_rejection_still_fails(capsys):
+    home_path = Path(__file__).with_name("home.yaml")
+
+    exit_code = main(
+        ["match", "turn on the bedroom", "--home", str(home_path), "--explain"]
+    )
+
+    # --explain can be added to any invocation without changing what a script
+    # makes of the result.
+    assert exit_code == 2
+    assert "Could be HassTurnOn" in capsys.readouterr().out
+
+
+def test_explain_emits_notes_as_json(capsys):
+    home_path = Path(__file__).with_name("home.yaml")
+
+    exit_code = main(
+        [
+            "match",
+            "turn on the kitchen lights",
+            "--home",
+            str(home_path),
+            "--explain",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    codes = [note["code"] for note in json.loads(capsys.readouterr().out)]
+    assert "keywords" in codes
+    assert "chosen" in codes

@@ -6,6 +6,7 @@ from typing import Any, Iterable, Sequence
 
 from .config import ConfigSource, MatcherConfig, load_home, normalize_tokens
 from .models import (
+    Cost,
     FrameCandidate,
     Interpretation,
     SegmentDebug,
@@ -14,6 +15,7 @@ from .models import (
     TargetReference,
     TargetScope,
     Token,
+    UnbuiltCombination,
 )
 from .response_keys import ResponseKeys, load_response_keys
 from .responses import RejectionResponder
@@ -1372,18 +1374,18 @@ class GazetteerMatcher:
                 (span for span in local_spans if span.tag == "name"),
                 ranking_context,
             )
-        cost = (
-            len(violations),
-            len(unexplained_important),
-            len(unexplained_unimportant),
-            -len(self._span_indexes(action_span)),
-            fuzzy_action,
-            len(fuzzy_options),
-            inherited_slots + int(inherited_action),
-            context_rank,
-            target_generality,
-            fuzzy_distance,
-            -len(consumed),
+        cost = Cost(
+            violations=len(violations),
+            unexplained_important=len(unexplained_important),
+            unexplained_unimportant=len(unexplained_unimportant),
+            action_words=-len(self._span_indexes(action_span)),
+            fuzzy_action=fuzzy_action,
+            fuzzy_slots=len(fuzzy_options),
+            inherited=inherited_slots + int(inherited_action),
+            context_rank=context_rank,
+            target_generality=target_generality,
+            fuzzy_distance=fuzzy_distance,
+            consumed=-len(consumed),
         )
         slot_values = {slot: option.value for slot, option in selected.items()}
         name_option = selected.get("name")
@@ -1497,7 +1499,10 @@ class GazetteerMatcher:
         anaphor_span: Span | None = None,
         previous_targets: Sequence[TargetReference] = (),
         coordination_target: dict[str, Any] | None = None,
+        unbuilt: list[UnbuiltCombination] | None = None,
     ) -> list[FrameCandidate]:
+        if unbuilt is None:
+            unbuilt = []
         action_key = str(action_span.value)
         action_spec = self.actions.get(action_key) or {}
         result: list[FrameCandidate] = []
@@ -1510,6 +1515,13 @@ class GazetteerMatcher:
         for intent in action_spec.get("intents") or []:
             for combo in self.catalog.combinations(intent):
                 if combo.context_area is True and context.area is None:
+                    unbuilt.append(
+                        UnbuiltCombination(
+                            intent=intent,
+                            combination=combo.name,
+                            needs_context_area=True,
+                        )
+                    )
                     continue
                 if anaphor_span is not None and action_key in self.anaphora_actions:
                     for index, previous_target in enumerate(previous_targets):
@@ -1561,6 +1573,14 @@ class GazetteerMatcher:
                             context,
                         )
                     if not options:
+                        unbuilt.append(
+                            UnbuiltCombination(
+                                intent=intent,
+                                combination=combo.name,
+                                slot=slot,
+                                satisfied=combo.slots[: len(option_lists)],
+                            )
+                        )
                         impossible = True
                         break
                     option_lists.append(options[:4])
@@ -1999,6 +2019,7 @@ class GazetteerMatcher:
                         anaphor_span,
                         anaphor_targets,
                         coordination_target,
+                        debug.unbuilt,
                     )
                 )
             if required_target:

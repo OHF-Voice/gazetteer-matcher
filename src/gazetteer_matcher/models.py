@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NamedTuple, TypedDict
 
 TargetScope = Literal["entity", "area", "floor", "home"]
 _TARGET_SLOTS = ("name", "area", "floor", "domain", "device_class")
@@ -127,6 +127,51 @@ class TargetReference:
         return cls(slots={**slots, "floor": floor_id}, scope="floor")
 
 
+class Cost(NamedTuple):
+    """How good a reading is, worst-first, compared field by field.
+
+    A plain tuple ordered so that lower is better throughout, which is the whole
+    ranking: readings are sorted on it and ties on it are what make a sentence
+    ambiguous. Named because the field that separates two readings is the reason
+    one of them won, and a position in an anonymous tuple cannot say that.
+
+    Fields counting something good are negated, so more of it still sorts lower.
+    """
+
+    violations: int = 0
+    """Constraints the reading breaks. Nothing else matters until this is equal."""
+
+    unexplained_important: int = 0
+    """Recognized words the reading found no use for."""
+
+    unexplained_unimportant: int = 0
+    """Words nothing recognized at all."""
+
+    action_words: int = 0
+    """Negated length of the action phrase: the longer reading of it wins."""
+
+    fuzzy_action: int = 0
+    """Whether the action was reached by spelling rather than by what was said."""
+
+    fuzzy_slots: int = 0
+    """How many slot values were reached by spelling."""
+
+    inherited: int = 0
+    """Slots and actions taken from a previous turn rather than this sentence."""
+
+    context_rank: int = 0
+    """How far the target is from the speaker, where a name is shared by several."""
+
+    target_generality: int = 0
+    """0 when a device was named, 1 when a room or kind of device stands in."""
+
+    fuzzy_distance: float = 0.0
+    """How far the spelling had to stretch, once the count of guesses is equal."""
+
+    consumed: int = 0
+    """Negated count of words the reading accounts for: covering more wins."""
+
+
 @dataclass
 class FrameCandidate:
     intent: str
@@ -145,7 +190,7 @@ class FrameCandidate:
     target_generality: int = 1
     target_scope: TargetScope | None = None
     violations: list[str] = field(default_factory=list)
-    cost: tuple[Any, ...] = ()
+    cost: Cost = Cost()
     response_key: str | None = None
 
     anaphor_target: int | None = None
@@ -171,6 +216,29 @@ class FrameCandidate:
         return self.intent, normalized, self.response_key
 
 
+@dataclass(frozen=True)
+class UnbuiltCombination:
+    """A shape of command that could not be read, and the slot that stopped it.
+
+    A combination's slots are resolved in order and the first one nothing in the
+    sentence can fill ends it, so ``slot`` is what was missing and ``satisfied`` is
+    how far it got. The combination that got furthest is the closest thing to what
+    the speaker meant.
+    """
+
+    intent: str
+    combination: str
+    slot: str | None = None
+    satisfied: tuple[str, ...] = ()
+    needs_context_area: bool = False
+    """Whether the shape was passed over for wanting the speaker's room.
+
+    A combination that resolves its target from where the speaker is standing is
+    unusable without that, and is dropped before any of its slots are tried -- so
+    it has no missing ``slot`` to report, only this.
+    """
+
+
 @dataclass
 class SegmentDebug:
     start: int
@@ -179,6 +247,7 @@ class SegmentDebug:
     frame_candidates: list[FrameCandidate] = field(default_factory=list)
     chosen: FrameCandidate | None = None
     rejection_reason: str | None = None
+    unbuilt: list[UnbuiltCombination] = field(default_factory=list)
 
 
 @dataclass

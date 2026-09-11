@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from .debug import render_interpretation, render_json, render_spans
+from .explain import explain, render
 from .matcher import GazetteerMatcher
 
 
@@ -40,6 +42,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     match_parser.add_argument(
         "--debug", action="store_true", help="Show spans and candidate frames"
+    )
+    match_parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="Say in a few lines how the sentence was read",
     )
     match_parser.add_argument("--json", action="store_true", help="Emit JSON")
     _add_paths(match_parser, include_home=False)
@@ -78,6 +85,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "spans":
         print(render_spans(result.spans))
         return 0
+
+    if args.explain:
+        notes = explain(matcher, result)
+        if args.json:
+            print(json.dumps([asdict(note) for note in notes], indent=2))
+        else:
+            print(render(notes))
+        # A rejection still fails, so --explain can be added to any invocation
+        # without changing what a script makes of it.
+        return 0 if result.accepted else 2
 
     if args.json:
         print(render_json(result, include_candidates=args.debug))

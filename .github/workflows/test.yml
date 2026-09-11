@@ -84,6 +84,9 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - name: Match __init__.py version to package version
+        run: script/check-version
+
       - name: Install packaging tools
         run: python -m pip install --upgrade build twine
 

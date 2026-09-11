@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Check that __init__.py __version__ matches the pyproject.toml version."""
+import ast
+import sys
+import tomllib
+from pathlib import Path
+
+_DIR = Path(__file__).parent
+_PROGRAM_DIR = _DIR.parent
+_PYPROJECT = _PROGRAM_DIR / "pyproject.toml"
+_INIT = _PROGRAM_DIR / "src" / "gazetteer_matcher" / "__init__.py"
+
+metadata = tomllib.loads(_PYPROJECT.read_text(encoding="utf-8"))
+version = metadata["project"]["version"]
+
+module = ast.parse(_INIT.read_text(encoding="utf-8"))
+dunder_version = next(
+    (
+        node.value.value
+        for node in module.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "__version__"
+            for target in node.targets
+        )
+        and isinstance(node.value, ast.Constant)
+    ),
+    None,
+)
+
+if dunder_version is None:
+    sys.exit(f"{_INIT.name} does not define a literal __version__")
+
+if dunder_version != version:
+    sys.exit(
+        f"{_INIT.name} __version__ {dunder_version!r} does not match "
+        f"pyproject.toml version {version!r}"
+    )

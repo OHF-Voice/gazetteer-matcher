@@ -44,6 +44,9 @@ jobs:
                   f"pyproject.toml version {version!r} (expected {expected_tag!r})"
               )
 
+      - name: Match __init__.py version to package version
+        run: script/check-version
+
       - name: Verify changelog section
         shell: python
         run: |

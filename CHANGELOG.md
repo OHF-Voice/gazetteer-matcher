@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+- Add `explain(matcher, result)` to add notes about why an interpretation was
+  accepted or rejected
+
 ## 1.1.0
 
 - Resolve `them` against every target the previous turn named, instead of
